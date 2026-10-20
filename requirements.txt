@@ -1,0 +1,14 @@
+pandas>=2.2
+numpy
+pyarrow
+scipy
+networkx
+matplotlib
+seaborn
+jupyter
+nbconvert
+nbformat
+ipykernel
+pytest
+neuprint-python
+python-igraph
