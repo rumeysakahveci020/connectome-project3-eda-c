@@ -87,7 +87,7 @@ for mod in ("pandas", "pyarrow", "matplotlib", "seaborn", "networkx", "nbformat"
 try:
     importlib.import_module("igraph")
 except ImportError:
-    say("WARN: igraph is not installed; C6 will be about 40 times slower (python -m pip install python-igraph)")
+    say("WARN: igraph is not installed; C6 will be much slower (about 8 times in my test) (python -m pip install python-igraph)")
 for rel in ("config.py", "eda_shared/eda_helpers.py", "src/build_cache.py", "notebooks/eda_C.ipynb", "tools/verify_outputs.py"):
     if not (ROOT / rel).exists():
         problems.append(f"missing {rel}")
