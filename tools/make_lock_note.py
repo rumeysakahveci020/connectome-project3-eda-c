@@ -34,6 +34,8 @@ def g(*path, fmt="{:,}", default="[x]"):
             return default
     if v is None:
         return "n/a"
+    if isinstance(v, dict):
+        return ", ".join(f"{k} {x:,}" if isinstance(x, int) else f"{k} {x}" for k, x in v.items())
     return fmt.format(v) if isinstance(v, (int, float)) else str(v)
 
 
@@ -41,6 +43,13 @@ def below(d):
     try:
         return f"{1 - NUM[d]['tau']['5']['synapses'] / NUM[d]['tau']['1']['synapses']:.0%}"
     except (TypeError, KeyError):
+        return "[x]"
+
+
+def ratio5():
+    try:
+        return f"{NUM[M]['tau']['5']['edges_per_neuron'] / NUM[F]['tau']['5']['edges_per_neuron']:.1f}"
+    except (TypeError, KeyError, ZeroDivisionError):
         return "[x]"
 
 
@@ -63,15 +72,17 @@ ROWS = [
      f"FlyWire {g(F,'mb_neurons')} and male CNS {g(M,'mb_neurons')} neurons; optic neurons among them: {g(F,'mb_is_optic')} and {g(M,'mb_is_optic')}. "
      f"Cell-type selection {g(F,'mb_neurons_cell_type_selection')} / {g(M,'mb_neurons_cell_type_selection')}, overlap {g(F,'overlap_region_and_cell_type')} / {g(M,'overlap_region_and_cell_type')}."),
     ("Labels",
-     "The sign vector comes from nt_type_corrected, never from nt_type. No neuron label is a prediction target. super_class is not a feature. Input and output units are chosen by cell type (see Task).",
+     "The sign vector comes from nt_type_corrected, never from nt_type. No neuron label is a prediction target. super_class is not used, so no levels are merged. Input and output units are chosen by cell type (see Task).",
      "Week 4 correction 1: the classifiers call Kenyon cells dopamine, which would give the main cell type of the mushroom body no sign.",
-     f"Labels in the subgraph (FlyWire): {g(F,'nt_counts')}. Source: {g(F,'source_counts')}. Male CNS: {g(M,'nt_counts')}; {g(M,'source_counts')}."),
+     f"Labels in the subgraph (FlyWire): {g(F,'nt_counts')}. Source: {g(F,'source_counts')}. Male CNS: {g(M,'nt_counts')}; {g(M,'source_counts')}. "
+     f"Type mix (types with at least 5 neurons, top transmitter below 90%): FlyWire {g(F,'type_mix','mixed_types')} of {g(F,'type_mix','types')}, "
+     f"male CNS {g(M,'type_mix','mixed_types')} of {g(M,'type_mix','types')} ({g(M,'type_mix','neurons_in_mixed_types')} neurons)."),
     ("Missing values",
      "A neuron with no input or no output at tau = 5 stays in the table with degree 0. In the model, units with no connection at all are removed, the same units in every condition, so unit counts stay matched; "
      "units with input only or output only stay. A neuron with an unknown transmitter keeps its edges and has a free sign.",
      "Isolated units cannot carry or receive a signal in the masked conditions and would only make the dense control different in size. Unknown is an absent label, not a third sign.",
      f"At tau = 5: isolated {g(F,'tau','5','isolated')} (FlyWire) and {g(M,'tau','5','isolated')} (male CNS); no input {g(F,'tau','5','no_input')} / {g(M,'tau','5','no_input')}; no output {g(F,'tau','5','no_output')} / {g(M,'tau','5','no_output')}. "
-     f"Unknown label: {pc(F,'unknown_label_share')} / {pc(M,'unknown_label_share')} of units."),
+     f"Unknown label: {g(F,'unknown_label_share',fmt='{:.1%}')} / {g(M,'unknown_label_share',fmt='{:.1%}')} of units."),
     ("Region ties",
      "The shared rule (alphabetically first name). Reported as a check: how many selected neurons are tied and how many would join or leave under the reverse rule.",
      "Results depend on region only through the selection, so the shared table is used as it is.",
@@ -83,10 +94,12 @@ ROWS = [
      "The question compares wiring components on one task, so the score estimates how one fixed network generalises to new stimuli of the same task, not to new neurons or cell types.",
      "Research question and brief (evaluation: at least 10 seeds, identical hyperparameter budget)."),
     ("Cross-dataset method",
-     f"Primary: the same absolute tau = 5 in both datasets. Check: a density-matched threshold for the male CNS (the tau with the same edges per neuron as FlyWire at tau = 5).",
-     "The brief asks whether the decomposition is consistent across individuals, which needs one protocol. Synapse counts are not on the same scale (about 1.5 times more synapses per connection in the male CNS), so a matched density is the natural check.",
-     f"Median synapses per edge at tau = 1: {g('cross_dataset','median_syn_per_edge_tau1',F,fmt='{:.0f}')} vs {g('cross_dataset','median_syn_per_edge_tau1',M,fmt='{:.0f}')}. Edges per neuron at tau = 5: {f1(F,'tau','5','edges_per_neuron')} vs {f1(M,'tau','5','edges_per_neuron')}; "
-     f"male CNS tau matching FlyWire's density: {g('cross_dataset','tau_malecns_matching_fafb_tau5_density')}."),
+     "Primary: the same absolute tau = 5 in both datasets. Check: a density-matched threshold for the male CNS (the tau whose edges per neuron equal FlyWire's at tau = 5, found by scanning). "
+     "The scaling used by Berg et al. (male weights scaled down, a separate noise threshold per dataset) is not applied.",
+     "The brief asks whether the decomposition is consistent across individuals, which needs one protocol. The male CNS carries about 1.5 times the synapses of FAFB (a Janelia preprint, quoted in the Corrections), "
+     "so the same tau is not the same stringency; a matched density is the natural check.",
+     f"Edges per neuron at tau = 5: {f1(F,'tau','5','edges_per_neuron')} (FlyWire) vs {f1(M,'tau','5','edges_per_neuron')} (male CNS), a factor of {ratio5()}. "
+     f"Male CNS tau matching FlyWire's tau = 5 density: {g('cross_dataset','tau_malecns_matching_fafb_tau5_density')}."),
     ("Task and units  [confirm]",
      "One supervised task fixed before any run: K-way classification of noisy binary prototype patterns. Inputs go to the Kenyon-cell units (one input channel per unit); the readout is linear on the MBON units. "
      "[Change this line if your brief or supervisor fixes another task.]",
@@ -97,7 +110,7 @@ ROWS = [
      "Glutamate acts through GluCl-alpha channels as an inhibitory transmitter in the Drosophila olfactory system (Liu and Wilson 2013), but not everywhere, so the other rule stays as a check.",
      f"C4 on the corrected labels: the glutamate rule shifts the median net input by at least 0.25 in {g('c4_corrected','shifted_025')} of {g('c4_corrected','neuropils')} neuropils and flips its sign in {g('c4_corrected','flip')}. "
      f"Units with a free sign: {g(F,'signs','rule1_glutamate_inhibitory','free')} / {g(M,'signs','rule1_glutamate_inhibitory','free')}; units + / - under rule 1: "
-     f"{g(F,'signs','rule1_glutamate_inhibitory','plus')} / {g(F,'signs','rule1_glutamate_inhibitory','minus')} (FlyWire)."),
+     f"{g(F,'signs','rule1_glutamate_inhibitory','plus')} / {g(F,'signs','rule1_glutamate_inhibitory','minus')} (FlyWire), {g(M,'signs','rule1_glutamate_inhibitory','plus')} / {g(M,'signs','rule1_glutamate_inhibitory','minus')} (male CNS)."),
     ("Mask below the threshold",
      "A connection below tau is 0 (not in the mask); there is no third 'unknown' state. Taus 3 and 10 show how much this matters.",
      "The ladder compares masks, so each pair is either allowed or forbidden; an unknown state would add a condition nobody asked for.",
@@ -138,7 +151,7 @@ def build(path: Path) -> None:
     for row in tb.rows:
         for i, w in enumerate(widths):
             row.cells[i].width = w
-    doc.add_paragraph("Sources: Schlegel et al., Nature 2024; Liu and Wilson, PNAS 2013; Eckstein et al., Cell 2024; Week 4 Shared Data Corrections; Project 3 brief.").runs[0].font.size = Pt(6.5)
+    doc.add_paragraph("Sources: Schlegel et al., Nature 2024; Liu and Wilson, PNAS 2013; Eckstein et al., Cell 2024; Berg et al., Cell 2026; Week 4 Shared Data Corrections; Project 3 brief.").runs[0].font.size = Pt(6.5)
     path.parent.mkdir(exist_ok=True)
     doc.save(path)
 
