@@ -1,8 +1,10 @@
-"""Shared helpers for the week 3 EDA (v0.1-eda).
+"""Shared helpers (v0.2.0).
 
-Temporary: these cover what the EDA needs before the week 3 session.
-The real features.py is written after the session, once D16 (zero-input
-behaviour) and D19 (feature column list) are decided.
+v0.1 covered what the week 3 EDA needed. v0.2.0 adds the MaleCNS nerve-cord
+list and the two unspecified-region rows, and corrects the relative_weight
+docstring (Week 4 Shared Data Corrections, items 4-6). The data corrections
+themselves are in corrections.py. The real features.py is still written
+once D16 (zero-input behaviour) and D19 (feature column list) are decided.
 
 Every function works on ONE dataset at a time and on tables built to the
 Week 2 Data Conventions (neurons, edges; edges cached at 1 synapse).
@@ -34,7 +36,27 @@ ALIASES = {
 }
 
 # Values that mean "no neuropil": region_group becomes unknown.
-NO_NEUROPIL = {"unknown", "UNASGD"}
+# UNASGD is FlyWire's spelling (None in its per-neuron count files);
+# <unspecified> (synapse-partner table) and NotPrimary (neuPrint adjacencies)
+# are the MaleCNS spellings for a synapse outside every primary ROI. Its
+# position (brain or nerve cord) is not known.
+NO_NEUROPIL = {"unknown", "UNASGD", "None", "<unspecified>", "NotPrimary"}
+
+# MaleCNS v1.0 nerve-cord neuropils and nerves, as base names (the side marker
+# is stripped first). Everything else with a known name is brain, including
+# CentralBrain-unspecified and Optic-unspecified (Week 4 correction 4).
+# Source: Project 5's EDA (src/eda_e.py), checked against every neuropil value
+# in the MaleCNS neurons and edgeroi tables. CRN (16 neurons, 8 synapses) is a
+# nerve of unclear position and is counted as nerve cord.
+MALECNS_NERVE_CORD = frozenset({
+    # neuropils of the ventral nerve cord, and the two unspecified VNC labels
+    "ANm", "IntTct", "LTct", "Ov", "VNC-unspecified", "CV-unspecified",
+    "LegNp(T1)", "LegNp(T2)", "LegNp(T3)", "mVAC(T1)", "mVAC(T2)", "mVAC(T3)",
+    "NTct(UTct-T1)", "WTct(UTct-T2)", "HTct(UTct-T3)",
+    # nerves
+    "CRN", "ADMN", "AbN1", "AbN2", "AbN3", "AbN4", "AbNT", "CvN", "DMetaN", "DProN",
+    "MesoAN", "MesoLN", "MetaLN", "PDMN", "PrN", "ProAN", "ProCN", "ProLN", "VProN",
+})
 
 
 def load_neuropil_table(path: str | Path = NEUROPIL_TABLE) -> pd.DataFrame:
@@ -74,6 +96,11 @@ def add_provisional_flags(neurons: pd.DataFrame, table: pd.DataFrame | None = No
                           nerve_cord: set[str] | frozenset[str] = frozenset()) -> pd.DataFrame:
     """Return a copy of `neurons` with the provisional EDA flags added.
 
+    fafb: add_provisional_flags(neurons)
+    malecns: add_provisional_flags(neurons, nerve_cord=MALECNS_NERVE_CORD).
+    After corrections.malecns_brain_part every malecns region is a brain
+    neuropil, so in_brain is True for all of them.
+
     neuropil      FlyWire base name, "unknown" or "nerve_cord"
     is_optic      True if the neuropil is in the optic lobe (False if unknown)
     region_group  sensory_periphery / motor_periphery / higher_order / unknown
@@ -83,7 +110,7 @@ def add_provisional_flags(neurons: pd.DataFrame, table: pd.DataFrame | None = No
     out = neurons.copy()
     out["neuropil"] = canonical_neuropil(out["region"], table, nerve_cord)
     known = out["neuropil"].isin(table.index)
-    out["is_optic"] = out["neuropil"].map(table["is_optic"]).fillna(False).astype(bool)
+    out["is_optic"] = out["neuropil"].map(table["is_optic"]).astype("boolean").fillna(False).astype(bool)
     out["region_group"] = (out["neuropil"].map(table["region_group"])
                            .fillna("unknown").astype("string"))
     out["in_brain"] = known
@@ -122,9 +149,19 @@ def basic_features(neurons: pd.DataFrame, edges: pd.DataFrame, tau: int = 10) ->
 
 
 def relative_weight(edges: pd.DataFrame) -> pd.Series:
-    """syn_count / total_in_syn(post), with the denominator taken from all
-    cached edges (tau = 1). Use for the relative thresholds 0.009 and 0.026.
-    Filter edges AFTER calling this, never before."""
+    """syn_count / total_in_syn(post): the share of the target's input that
+    this edge carries. Use for the relative thresholds 0.009 and 0.026.
+
+    The denominator is the sum over every row of `edges`, so pass the right
+    table, at tau = 1, and filter AFTER calling this, never before:
+      fafb     the full cached edge table (FAFB is a brain volume);
+      malecns  the brain-part edges from corrections.malecns_brain_part, so
+               the denominator is the neuron's input inside the brain and
+               comparable to fafb (Week 4 correction 5). Input arriving in
+               the nerve cord is not counted.
+    v0.1.1 said "all cached edges", which for malecns would have included
+    nerve-cord input. That wording was wrong; the computation is unchanged.
+    """
     _single_dataset(edges, "edges")
     total_in = edges.groupby("post_id")["syn_count"].transform("sum")
     return edges["syn_count"] / total_in

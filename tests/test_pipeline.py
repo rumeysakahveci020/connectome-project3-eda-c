@@ -1,4 +1,5 @@
-"""Tests for the fetch/cache/validate code (not for eda_shared; those are in eda_shared/tests)."""
+"""Tests of the corrected pipeline (eda_shared v0.2.0): the build recovers planted facts from synthetic raw files, the streaming reader,
+the validators, the cache, and the figures. Nothing here touches real data or the network."""
 from pathlib import Path
 
 import numpy as np
@@ -10,72 +11,183 @@ from src import fetch_fafb as F, fetch_malecns as M
 from src.cache import cached
 from src.validators import assert_interchangeable, coerce, validate_edges, validate_neurons
 
-ANN = Path("data/raw/Supplemental_file1_neuron_annotations.tsv")
+ROOT = Path(__file__).resolve().parent.parent
 
 
-def fafb_edge_csv(tmp_path):
-    df = pd.DataFrame({
-        "pre_root_id": [10, 10, 10, 20, 30, 30], "post_root_id": [20, 20, 30, 30, 10, 30],
-        "neuropil": ["MB_CA_R", "MB_PED_R", "MB_CA_R", "ME_R", "SMP_L", "SMP_L"],
-        "syn_count": [3, 4, 6, 2, 9, 5]})
-    p = tmp_path / "edges.csv"
-    df.to_csv(p, index=False)
-    return str(p)
+# ---------------------------------------------------------------------------------------------- the synthetic build
+@pytest.fixture(scope="module")
+def built(tmp_path_factory):
+    import sys
+    sys.path.insert(0, str(ROOT / "tools"))
+    import make_synthetic_raw as S
+    base = tmp_path_factory.mktemp("syn")
+    raw = S.main(str(base))
+    mp = pytest.MonkeyPatch()
+    mp.setattr(config, "CACHE_DIR", base / "cache")
+    from src.build_cache import main
+    rc = main(["--fafb-edges", str(raw / "proofread_connections_783.feather"), "--fafb-annotations", str(raw / "Supplemental_file1_neuron_annotations.tsv"),
+               "--fafb-proofread-ids", str(raw / "proofread_root_ids_783.npy"),
+               "--fafb-count-pre", str(raw / "per_neuron_neuropil_count_pre_783.feather"), "--fafb-count-post", str(raw / "per_neuron_neuropil_count_post_783.feather"),
+               "--malecns-syn-partners", str(raw / "syn-partners-male-cns-v1.0-minconf-0.5.feather"),
+               "--malecns-weights", str(raw / "connectome-weights-male-cns-v1.0-minconf-0.5.feather")])
+    assert rc == 0
+    import json
+    out = {"raw": raw, "S": S}
+    for name in ("fafb", "malecns"):
+        rel = "783" if name == "fafb" else "v1.0"
+        src = f"ann{config.FAFB_ANNOTATIONS_TAG[1:]}" if name == "fafb" else "traced"
+        esrc = config.FAFB_SYNAPSE_TABLE if name == "fafb" else "traced"
+        kw = {} if name == "fafb" else {"conf": config.MALECNS_SYN_CONFIDENCE}
+        out[name] = (pd.read_parquet(config.cache_path(name, "neurons", rel, src)),
+                     pd.read_parquet(config.cache_path(name, "edges", rel, esrc, min_syn=1, **kw)),
+                     pd.read_parquet(config.cache_path(name, "edgeroi", rel, esrc, min_syn=1, **kw)),
+                     json.loads((config.CACHE_DIR / f"step0_{name}.json").read_text()))
+    yield out
+    mp.undo()
 
 
-def toy_ann():
-    return pd.DataFrame({
-        "root_id": ["10", "20", "30"], "cell_type": ["KCg-m", None, "MBON01"],
-        "cell_class": [None, "x", None], "cell_sub_class": [None] * 3,
-        "super_class": ["central", "optic", "central"], "side": ["left", "na", "right"],
-        "top_nt": ["acetylcholine", None, "gaba"], "top_nt_conf": ["0.9", "", "0.7"],
-        "hemibrain_type": [None] * 3, "dimorphism": [None] * 3, "status": [None] * 3,
-        "ito_lee_hemilineage": ["A", None, "B"], "known_nt": ["acetylcholine", None, None]})
+def test_fafb_neuron_set_is_the_proofread_list(built):
+    n, e, r, rep = built["fafb"]
+    S = built["S"].PLANTED
+    assert len(n) == S["fafb_n"]
+    assert rep["dropped_not_in_release"] == S["fafb_not_in_release"] and rep["added_unknown"] == S["fafb_not_annotated"]
+    assert set(n["neuron_id"]) == set(np.load(built["raw"] / "proofread_root_ids_783.npy"))
+    added = n[n["cell_type"].isna()]
+    assert len(added) >= S["fafb_not_annotated"] and (added["super_class"].astype(str) == "unknown").all()
+    assert (added["region"].astype(str) != "unknown").all()                  # the 14 have synapses, so they get a real region
+    assert set(e["pre_id"]).union(e["post_id"]) <= set(n["neuron_id"])         # no edge dropped for lack of a neuron
 
 
-def test_fafb_sum_over_neuropils_then_drop_self_and_regions(tmp_path):
-    er = F.read_edgeroi(fafb_edge_csv(tmp_path))
-    assert er.attrs["self_connections"] == 1                      # 30 -> 30 dropped
-    e = F.edges_from_edgeroi(er)
-    assert int(e.loc[(e.pre_id == 10) & (e.post_id == 20), "syn_count"].iloc[0]) == 7   # 3 + 4 summed first
-    assert (e["syn_count"] >= 5).sum() == 3                       # 10->20 (7), 10->30 (6), 30->10 (9)
-    n = F.build_neurons(toy_ann(), er)
-    assert n.loc[n.neuron_id == 10, "region"].iloc[0] == "MB_CA_R"
-    assert n.loc[n.neuron_id == 20, "side"].iloc[0] == "unknown"
-    assert n["nt_confidence"].isna().tolist() == [False, True, False]
-    validate_neurons(n)
-    validate_edges(coerce(e[list(config.EDGE_SCHEMA)], config.EDGE_SCHEMA), n)
+def test_fafb_region_is_never_unassigned_and_ties_go_to_the_alphabetically_first_name(built):
+    n, *_ = built["fafb"]
+    assert not n["region"].astype(str).isin(["UNASGD", "None"]).any()
+    pre = pd.read_feather(built["raw"] / "per_neuron_neuropil_count_pre_783.feather").rename(columns={"pre_pt_root_id": "neuron_id"})
+    post = pd.read_feather(built["raw"] / "per_neuron_neuropil_count_post_783.feather").rename(columns={"post_pt_root_id": "neuron_id"})
+    c = pd.concat([pre, post]).query("neuropil != 'UNASGD'").groupby(["neuron_id", "neuropil"], as_index=False)["count"].sum()
+    c = c.sort_values(["neuron_id", "count", "neuropil"], ascending=[True, False, True]).drop_duplicates("neuron_id").set_index("neuron_id")["neuropil"]
+    got = n.set_index("neuron_id")["region"].astype(str)
+    ids = c.index.intersection(got.index)
+    base = lambda s: s.str.replace(r"_[LR]$", "", regex=True)                  # canonical names are checked by eda_shared; compare the raw names
+    assert (got.loc[ids] == c.loc[ids]).all()
 
 
-def test_fafb_unmapped_super_class_raises():
-    ann = toy_ann()
-    ann.loc[0, "super_class"] = "sensory_ascending"
-    with pytest.raises(ValueError, match="sensory_ascending"):
-        F.build_neurons(ann)
-    F.build_neurons(ann, super_class_extra={"sensory_ascending": "ascending"})
+def test_kenyon_cells_are_cholinergic_after_the_correction_in_both_datasets(built):
+    for name in ("fafb", "malecns"):
+        n = built[name][0]
+        kc = n[n["cell_type"].astype("string").str.startswith("KC", na=False)]
+        assert len(kc) > 50 and (kc["nt_type_corrected"].astype(str) == "acetylcholine").all()
+        assert set(kc["nt_correction_source"].astype(str)) <= {"known_nt", "kc_override", "predicted"}
+        assert (n["nt_type"].astype(str) == "dopamine").sum() > (n["nt_type_corrected"].astype(str) == "dopamine").sum()   # nt_type itself is unchanged
+    assert (built["malecns"][0].loc[lambda d: d["cell_type"].astype("string").str.startswith("KC", na=False), "nt_correction_source"].astype(str) == "kc_override").all()
 
 
-@pytest.mark.skipif(not ANN.exists(), reason="real annotation file not downloaded")
-def test_fafb_real_annotations_match_the_week2_numbers():
-    ann = pd.read_csv(ANN, sep="\t", dtype=str, keep_default_na=False, na_values=[""])
-    n = F.build_neurons(ann, super_class_extra={"sensory_ascending": "ascending"})
-    validate_neurons(n)
-    assert len(n) == 139_248
-    assert abs(n["cell_class"].isna().mean() - 0.23) < 0.01
-    assert abs(n["nt_confidence"].median() - 0.69) < 0.01
+def test_super_class_keeps_the_raw_value_and_uses_the_shared_levels(built):
+    n = built["fafb"][0]
+    assert (n["super_class"].astype(str) == "sensory_ascending").any()
+    m = built["malecns"][0]
+    assert {"optic", "central", "sensory", "ascending"} <= set(m["super_class"].astype(str))
+    assert (m.loc[m["super_class"].astype(str) == "optic", "super_class_source"] == "ol_intrinsic").all()
+    assert set(m["super_class"].astype(str)) <= set(config.SUPER_CLASS_VALUES)
 
 
-def test_validators_catch_problems():
-    n = F.build_neurons(toy_ann())
+def test_malecns_brain_part_drops_nerve_cord_only_neurons_and_keeps_ascending(built):
+    n, e, r, rep = built["malecns"]
+    assert rep["neurons_traced"] == built["S"].PLANTED["malecns_n"] and 0 < len(n) < rep["neurons_traced"]
+    assert rep["neurons_dropped"] == rep["neurons_traced"] - len(n)
+    assert rep["ascending_kept"] > 0 and rep["sensory_ascending_kept"] > 0
+    assert not n["region"].astype(str).str.startswith("LegNp").any()          # no nerve-cord neuropil is ever a region
+    assert set(e["pre_id"]).union(e["post_id"]) <= set(n["neuron_id"])
+    assert r["neuropil"].astype(str).str.startswith("LegNp").sum() == 0       # edgeroi_b: brain rows only
+    assert int(e["syn_count"].sum()) == rep["synapses_tau1"]
+    assert rep["self_connections"] == built["S"].PLANTED["malecns_self"]
+
+
+def test_malecns_per_neuropil_counts_add_up_to_the_published_weights(built):
+    assert built["malecns"][3]["weights_check"]["agree"] is True
+
+
+def test_both_tables_are_interchangeable_and_valid(built):
+    for name in ("fafb", "malecns"):
+        n, e, r, _ = built[name]
+        validate_neurons(n); validate_edges(e, n); validate_edges(r, n, roi=True)
+    assert_interchangeable(built["fafb"][0], built["malecns"][0])
+    assert_interchangeable(built["fafb"][1], built["malecns"][1])
+
+
+def test_step0_tool_prints_the_table(built, capsys, monkeypatch):
+    import sys
+    sys.path.insert(0, str(ROOT / "tools"))
+    import step0
+    monkeypatch.setattr(step0, "ROOT", built["raw"].parent)
+    assert step0.main() == 0
+    out = capsys.readouterr().out
+    assert "FAFB neurons" in out and "MaleCNS brain part: neurons kept" in out and "Transmitter correction" in out and "Kenyon-cell types" in out
+    assert (built["raw"].parent / "reports" / "step0_C.md").exists()
+
+
+def test_mushroom_body_type_mix_flags_a_type_with_two_transmitters(built):
+    from src import eda_c as C
+    from src import eda_utils as U
+    n = U.flags(built["fafb"][0], frozenset())
+    mix = C.mb_type_mix(n)
+    assert {"cell_type", "neurons", "top_nt", "top_share", "n_nt", "mix"} <= set(mix.columns) and len(mix) >= 2
+    kc = mix[mix["cell_type"] == "KCg-m"].iloc[0]
+    assert kc["top_nt"] == "acetylcholine" and kc["top_share"] == 1.0 and kc["n_nt"] == 1
+    mbon = mix[mix["cell_type"] == "MBON01"]
+    assert (mbon["n_nt"] > 1).all()                                            # the planted MBON types mix GABA, glutamate and acetylcholine
+
+
+def test_config_is_the_week4_version():
+    assert config.CONFIG_VERSION == "0.2.0"
+    assert {"sensory_ascending", "efferent", "vnc_intrinsic"} <= set(config.SUPER_CLASS_VALUES)
+    assert {"nt_type_corrected", "nt_correction_source", "super_class_source"} <= set(config.NEURON_SCHEMA)
+
+
+# ---------------------------------------------------------------------------------------------- the streaming reader
+def test_syn_partners_are_counted_per_neuropil_across_batches(tmp_path):
+    import pyarrow as pa, pyarrow.feather as pf
+    rows = [(1, 2, "SMP(R)"), (1, 2, "SMP(R)"), (1, 2, "FB"), (1, 2, None), (1, 2, "NotPrimary"),    # pair 1->2: 5 synapses, 4 locations
+            (2, 3, "FB"), (3, 3, "FB"),                                                             # 3->3 is a self-connection
+            (1, 99, "FB"), (99, 2, "FB")]                                                           # 99 is not Traced
+    df = pd.DataFrame(rows, columns=["body_pre", "body_post", "primary_post"])
+    pf.write_feather(pa.Table.from_pandas(df), tmp_path / "sp.feather", chunksize=2)                # five record batches
+    e = M.read_syn_partners(str(tmp_path / "sp.feather"), {1, 2, 3})
+    got = {(r.pre_id, r.post_id, r.neuropil): r.syn_count for r in e.itertuples()}
+    assert got == {(1, 2, "SMP(R)"): 2, (1, 2, "FB"): 1, (1, 2, "<unspecified>"): 1, (1, 2, "NotPrimary"): 1, (2, 3, "FB"): 1}
+    assert e.attrs["self_connections"] == 1 and e["syn_count"].dtype == "int32"
+
+
+def test_streaming_feather_filter_matches_a_full_read(tmp_path):
+    import pyarrow as pa, pyarrow.feather as pf
+    df = pd.DataFrame({"body_pre": np.arange(1, 41, dtype="int64") % 7 + 1, "body_post": np.arange(2, 42, dtype="int64") % 7 + 1,
+                       "weight": np.arange(40, dtype="int32") + 1})
+    pf.write_feather(pa.Table.from_pandas(df), tmp_path / "e.feather", chunksize=6)      # many record batches
+    from src.tables import read_feather_filtered
+    keep = {1, 2, 3}
+    got = read_feather_filtered(tmp_path / "e.feather", ["body_pre", "body_post", "weight"], ("body_pre", "body_post"), keep)
+    want = df[df.body_pre.isin(keep) & df.body_post.isin(keep)].reset_index(drop=True)
+    pd.testing.assert_frame_equal(got, want, check_dtype=False)
+
+
+# ---------------------------------------------------------------------------------------------- validators and cache
+def test_validators_catch_problems(built):
+    n = built["fafb"][0]
     bad = n.copy()
     bad["neuron_id"] = bad["neuron_id"].astype("float64")
     with pytest.raises(ValueError, match="neuron_id"):
         validate_neurons(bad)
-    e = F.edges_from_edgeroi(F.read_edgeroi.__wrapped__ if False else pd.DataFrame(
-        {"pre_id": [10], "post_id": [99], "neuropil": ["x"], "syn_count": np.int32([5])}))
-    e = coerce(e[list(config.EDGE_SCHEMA)], config.EDGE_SCHEMA)
+    e = built["fafb"][1].iloc[:1].copy()
+    e["post_id"] = np.int64(99)
     with pytest.raises(ValueError, match="post_id"):
         validate_edges(e, n)
+    with pytest.raises(ValueError, match="vocabulary"):
+        coerce(n.assign(nt_type_corrected="unobtainium")[list(config.NEURON_SCHEMA)], config.NEURON_SCHEMA)
+
+
+def test_an_unmapped_male_cns_superclass_raises_naming_the_value():
+    raw = pd.DataFrame({"bodyId": [1], "type": ["x"], "superclass": ["mystery_class"], "predictedNt": ["gaba"], "predictedNtConfidence": [.9]})
+    with pytest.raises(ValueError, match="mystery_class"):
+        M.build_neurons(raw)
 
 
 def test_cache_reads_second_time_and_refetches_only_the_deleted_file(tmp_path):
@@ -94,119 +206,9 @@ def test_cache_reads_second_time_and_refetches_only_the_deleted_file(tmp_path):
     assert calls == ["a", "b", "b"]
 
 
-def malecns_raw():
-    return pd.DataFrame({
-        "bodyId": [1, 2, 3], "type": ["KCg-m", "MBON01", None], "class": [None] * 3, "subclass": [None] * 3,
-        "superclass": ["central_neuron", "Central", "sensory"], "somaSide": ["L", None, "R"],
-        "rootSide": ["L", "R", "R"], "predictedNt": ["dopamine", "gaba", "unclear"],
-        "predictedNtConfidence": [0.8, 0.9, 0.3], "consensusNt": ["acetylcholine", "gaba", None],
-        "pre": [10, 5, 1], "post": [20, 30, 2], "flywireType": [None] * 3, "mancType": [None] * 3,
-        "hemibrainType": [None] * 3, "dimorphism": [None] * 3, "status": ["Traced"] * 3, "itoleeHl": [None] * 3})
-
-
-def test_malecns_neurons_and_edges():
-    roi = pd.DataFrame({"bodyId": [1, 1, 2, 3], "roi": ["CA(R)", "PED(R)", "a'L(R)", "LegNp(T1)(L)"],
-                        "pre": [5, 1, 2, 1], "post": [6, 1, 3, 1]})
-    n = M.build_neurons(malecns_raw(), roi, ["CA(R)", "PED(R)", "a'L(R)", "LegNp(T1)(L)"])
-    validate_neurons(n)
-    assert n.set_index("neuron_id").loc[1, "region"] == "CA(R)"
-    assert n.set_index("neuron_id").loc[2, "side"] == "right"          # somaSide missing -> rootSide
-    assert n.set_index("neuron_id").loc[3, "nt_type"] == "unknown"
-    assert n["nt_confidence"].isna().tolist() == [False, False, True]
-    fa = F.build_neurons(toy_ann())
-    assert_interchangeable(fa, n)
-
-
-def test_malecns_unmapped_side_raises():
-    raw = malecns_raw()
-    raw.loc[0, "somaSide"] = "X"
-    with pytest.raises(ValueError, match="side"):
-        M.build_neurons(raw, None, [])
-    raw.loc[1, "superclass"] = "cb_weird"
-    with pytest.raises(ValueError, match="cb_weird.*side|side.*cb_weird"):   # both problems in one message
-        M.build_neurons(raw, None, [])
-
-
-def test_fafb_feather_edge_file(tmp_path):
-    df = pd.DataFrame({"pre_pt_root_id": np.array([10, 10, 20], dtype="uint64") + 720575940000000000,
-                       "post_pt_root_id": np.array([20, 30, 30], dtype="uint64") + 720575940000000000,
-                       "neuropil": ["MB_CA_R", "MB_CA_R", "SMP_L"], "syn_count": np.array([3, 6, 9], dtype="int32"),
-                       "gaba_avg": [0.1, 0.1, 0.1]})
-    p = tmp_path / "proofread_connections_783.feather"
-    df.to_feather(p)
-    er = F.read_edgeroi(str(p))
-    assert len(er) == 3 and er["pre_id"].dtype == "int64" and int(er.pre_id.iloc[0]) == 720575940000000010
-
-
-def test_malecns_bulk_file_route_end_to_end(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "CACHE_DIR", tmp_path / "cache")
-    raw = malecns_raw()
-    ann = raw.drop(columns=["predictedNt", "predictedNtConfidence", "consensusNt"]).copy()
-    ann["status"] = ["Traced", "Traced", "Orphan"]
-    ann.to_feather(tmp_path / "ann.feather")
-    raw[["bodyId", "predictedNt", "predictedNtConfidence", "consensusNt"]].to_feather(tmp_path / "nt.feather")
-    pd.DataFrame({"body_pre": [1, 1, 2, 3], "body_post": [2, 2, 1, 1], "roi": ["CA(R)", "PED(R)", "a'L(R)", "x"],
-                  "weight": [3, 4, 6, 9]}).to_feather(tmp_path / "edges.feather")
-    n, e, r = M.fetch_malecns(str(tmp_path / "edges.feather"), str(tmp_path / "ann.feather"), True, None,
-                              str(tmp_path / "nt.feather"))
-    assert sorted(n["neuron_id"]) == [1, 2]                       # the Orphan row is gone
-    assert int(e.loc[(e.pre_id == 1) & (e.post_id == 2), "syn_count"].iloc[0]) == 7
-    assert (config.CACHE_DIR / "malecns_nt_consensus_v1.0.parquet").exists()
-    validate_neurons(n)
-
-
-def test_malecns_without_any_region_information_raises(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "CACHE_DIR", tmp_path / "cache")
-    raw = malecns_raw()
-    raw.to_feather(tmp_path / "ann.feather")
-    pd.DataFrame({"body_pre": [1], "body_post": [2], "weight": [5]}).to_feather(tmp_path / "edges.feather")
-    with pytest.raises(RuntimeError, match="region"):
-        M.fetch_malecns(str(tmp_path / "edges.feather"), str(tmp_path / "ann.feather"), True)
-
-
-def test_fafb_proofread_list_drops_stale_annotation_ids_and_keeps_edge_ids(tmp_path):
-    er = F.read_edgeroi(fafb_edge_csv(tmp_path))                    # edges touch 10, 20, 30
-    ann = toy_ann()
-    stale = ann.iloc[[0]].copy(); stale["root_id"] = "99"           # annotated, not in the release list
-    both = pd.concat([ann, stale], ignore_index=True)
-    plain = F.build_neurons(both, er)
-    assert sorted(plain["neuron_id"]) == [10, 20, 30, 99]
-    kept = F.build_neurons(both, er, proofread_ids={10, 20, 30, 31})
-    assert sorted(kept["neuron_id"]) == [10, 20, 30]
-
-
-def test_streaming_feather_filter_matches_a_full_read(tmp_path):
-    import pyarrow as pa, pyarrow.feather as pf
-    df = pd.DataFrame({"body_pre": np.arange(1, 41, dtype="int64") % 7 + 1, "body_post": np.arange(2, 42, dtype="int64") % 7 + 1,
-                       "weight": np.arange(40, dtype="int32") + 1})
-    pf.write_feather(pa.Table.from_pandas(df), tmp_path / "e.feather", chunksize=6)      # many record batches
-    from src.tables import read_feather_filtered
-    keep = {1, 2, 3}
-    got = read_feather_filtered(tmp_path / "e.feather", ["body_pre", "body_post", "weight"], ("body_pre", "body_post"), keep)
-    want = df[df.body_pre.isin(keep) & df.body_post.isin(keep)].reset_index(drop=True)
-    pd.testing.assert_frame_equal(got, want, check_dtype=False)
-
-
-def test_malecns_neuprint_route_with_a_three_column_edge_file(tmp_path, monkeypatch):
-    """The real bulk file has only body_pre, body_post, weight (no ROI, no confidence)."""
-    monkeypatch.setattr(config, "CACHE_DIR", tmp_path / "cache")
-    raw = malecns_raw()
-    roi = pd.DataFrame({"bodyId": [1, 1, 2, 3], "roi": ["CA(R)", "PED(R)", "a'L(R)", "LegNp(T1)(L)"],
-                        "pre": [5, 1, 2, 1], "post": [6, 1, 3, 1]})
-    monkeypatch.setattr(M, "fetch_neurons_neuprint", lambda: (raw, roi, ["CA(R)", "PED(R)", "a'L(R)", "LegNp(T1)(L)"]))
-    pd.DataFrame({"body_pre": [1, 2, 3, 9, 1], "body_post": [2, 1, 1, 1, 1], "weight": [7, 6, 9, 4, 3]}
-                 ).to_feather(tmp_path / "edges.feather")
-    n, e, r = M.fetch_malecns(str(tmp_path / "edges.feather"), None, True)
-    assert sorted(n["neuron_id"]) == [1, 2, 3]
-    assert len(e) == 3 and 9 not in set(e.pre_id)                     # outside neuron 9 and the self-connection are gone
-    assert set(r["neuropil"].astype(str)) == {"all"}
-    assert n.set_index("neuron_id").loc[1, "region"] == "CA(R)"
-    validate_neurons(n)
-
-
-def test_provisional_map_targets_are_valid_vocabulary():
-    from src.provisional_maps import PROVISIONAL_SUPER_CLASS
-    assert set(PROVISIONAL_SUPER_CLASS.values()) <= set(config.SUPER_CLASS_VALUES)
+def test_fafb_build_without_the_corrected_inputs_says_what_is_missing(tmp_path):
+    with pytest.raises(ValueError, match="fafb-count-pre"):
+        F.fetch_fafb(str(tmp_path / "none.feather"), force_refresh=True)
 
 
 def test_igraph_and_networkx_triad_census_agree():
@@ -224,35 +226,14 @@ def test_igraph_and_networkx_triad_census_agree():
     assert C.TRIAD_NAMES.index("111D") < C.TRIAD_NAMES.index("111U")
 
 
-def test_malecns_region_uses_upstream_plus_downstream_when_roiinfo_has_them():
-    raw = malecns_raw().copy()
-    # neuron 1: pre + post would pick CA(R) (10 vs 4); upstream + downstream picks PED(R) (3 + 20 vs 1 + 1)
-    raw["roiInfo"] = [{"CA(R)": {"pre": 8, "post": 2, "upstream": 1, "downstream": 1},
-                       "PED(R)": {"pre": 1, "post": 3, "upstream": 3, "downstream": 20}},
-                      {"a'L(R)": {"pre": 1, "post": 1, "upstream": 2, "downstream": 2}},
-                      {"CA(R)": {"pre": 1, "post": 1, "upstream": 1, "downstream": 1}}][: len(raw)]
-    roi = pd.DataFrame({"bodyId": [1, 1], "roi": ["CA(R)", "PED(R)"], "pre": [8, 1], "post": [2, 3]})
-    neu = M.build_neurons(raw, roi, ["CA(R)", "PED(R)", "a'L(R)"])
-    assert neu.set_index("neuron_id").loc[1, "region"] == "PED(R)"
-
-
-def test_group_rows_make_the_unspecified_regions_known_and_keep_eda_shared_unchanged():
-    from src import eda_utils as U
-    n = pd.DataFrame({"neuron_id": [1, 2, 3, 4], "region": ["Optic-unspecified(L)", "Optic-unspecified(R)",
-                                                           "CentralBrain-unspecified", "CA(R)"]})
-    out = U.flags(n, frozenset())
-    assert out["in_brain"].all()
-    assert out.set_index("neuron_id")["is_optic"].to_dict() == {1: True, 2: True, 3: False, 4: False}
-    assert (out.set_index("neuron_id").loc[[1, 2, 3], "region_group"] == "unknown").all()
-    from eda_shared.eda_helpers import load_neuropil_table
-    assert "Optic-unspecified" not in load_neuropil_table().index        # the shared table itself is not edited
-
-
+# ---------------------------------------------------------------------------------------------- figures
 def _c1_toy():
     import matplotlib
     matplotlib.use("Agg")
     def neurons(rows):
-        return pd.DataFrame(rows, columns=["neuron_id", "nt_type", "super_class", "region_group", "is_optic"])
+        d = pd.DataFrame(rows, columns=["neuron_id", "nt_type", "super_class", "region_group", "is_optic"])
+        d["nt_type_corrected"] = d["nt_type"]
+        return d
     nt = ["acetylcholine", "gaba", "glutamate"]
     big = [(i, nt[i % 3], "central", "higher_order", False) for i in range(100)]
     small = [(1000 + i, "gaba", "optic", "unknown", False) for i in range(5)]               # 5 neurons: faded
@@ -260,6 +241,15 @@ def _c1_toy():
     opt = [(3000 + i, nt[i % 3], "optic", "sensory_periphery", True) for i in range(60)]
     edges = pd.DataFrame({"pre_id": [0], "post_id": [1], "syn_count": [5]})
     return {"fafb": (neurons(big + small + only_fafb + opt), edges), "malecns": (neurons(big + opt), edges)}
+
+
+def test_c1_shares_use_the_corrected_label_unless_told_otherwise():
+    from src import eda_c as C
+    n = pd.DataFrame({"neuron_id": range(10), "nt_type": ["dopamine"] * 10, "nt_type_corrected": ["acetylcholine"] * 8 + ["dopamine"] * 2,
+                      "super_class": "central", "region_group": "higher_order", "is_optic": False})
+    edges = pd.DataFrame({"pre_id": [0], "post_id": [1], "syn_count": [5]})
+    assert C.c1_shares(n, edges, "central", "super_class", False).loc["overall", "acetylcholine"] == pytest.approx(0.8)
+    assert C.c1_shares(n, edges, "central", "super_class", False, nt_col="nt_type").loc["overall", "dopamine"] == pytest.approx(1.0)
 
 
 def test_c1_figure_rows_are_the_same_in_both_panels_small_rows_faded_and_single_group_not_duplicated():
@@ -289,7 +279,7 @@ def test_c3_figure_counts_every_hemilineage_and_explains_itself():
     assert sum(p.get_height() for p in ax.patches) == len(tab)                 # the old histogram lost the purity-1.0 bar
     texts = " ".join(t.get_text() for t in ax.texts)
     assert "PURE" in texts and "MIXED" in texts and "How to read this plot" in texts and "Least pure" in texts and "primary*" in texts
-    assert "58% of 12 hemilineages are pure" in ax.get_title() or "of 12 hemilineages are pure" in ax.get_title()
+    assert "of 12 hemilineages are pure" in ax.get_title()
 
 
 def test_every_figure_carries_the_fingerprint_of_the_code_that_drew_it(tmp_path, monkeypatch):
@@ -314,6 +304,7 @@ def test_c1_row_identical_to_overall_says_so_and_c4_region_labels_do_not_collide
     nt = ["acetylcholine", "gaba", "glutamate"]
     rows = [(i, nt[i % 3], "optic", "sensory_periphery", True) for i in range(60)] + [(1000 + i, "gaba", "optic", "unknown", True) for i in range(70)]
     n = pd.DataFrame(rows, columns=["neuron_id", "nt_type", "super_class", "region_group", "is_optic"])
+    n["nt_type_corrected"] = n["nt_type"]
     n_f = n[n["region_group"] == "sensory_periphery"]                       # FlyWire-like: one group, equal to overall
     edges = pd.DataFrame({"pre_id": [0], "post_id": [1], "syn_count": [5]})
     fig, _ = C.c1_figure({"fafb": (n_f, edges), "malecns": (n, edges)}, "optic", "region_group", False)

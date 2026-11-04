@@ -3,99 +3,145 @@
   "which male CNS transmitter label to use (predictedNt has no sensible Kenyon-cell class)"
  ],
  "unspecified": {
-  "CentralBrain-unspecified": 365,
+  "CentralBrain-unspecified": 485,
   "Optic-unspecified(L)": 359,
   "Optic-unspecified(R)": 37
  },
  "C1": {
   "central": {
    "fafb": {
-    "acetylcholine": 0.5212533998696248,
-    "gaba": 0.11873131476611144,
-    "glutamate": 0.17645604333850337,
-    "dopamine": 0.13102704160766065,
-    "serotonin": 0.04122552655832041,
-    "octopamine": 0.001843235102389462,
-    "histamine": 0.0,
-    "unknown": 0.0094634387573898
+    "acetylcholine": 0.6642335766423357,
+    "gaba": 0.11544719022073696,
+    "glutamate": 0.17340163574004044,
+    "dopamine": 0.013257409198839153,
+    "serotonin": 0.02308504089350101,
+    "octopamine": 0.0021106323102629498,
+    "histamine": 0.00514466625626594,
+    "unknown": 0.0033198487380177643
    },
    "malecns": {
-    "acetylcholine": 0.5515367827589343,
-    "gaba": 0.12105574247522051,
-    "glutamate": 0.16038465035918886,
-    "dopamine": 0.10082295171410385,
-    "serotonin": 0.008343184504864962,
-    "octopamine": 0.0013867418386832773,
-    "histamine": 4.546694553059925e-05,
-    "unknown": 0.05642447940347368
+    "acetylcholine": 0.6483282941150694,
+    "gaba": 0.12203672056439245,
+    "glutamate": 0.15658823013890716,
+    "dopamine": 0.008259936023837693,
+    "serotonin": 0.008435213180842206,
+    "octopamine": 0.001511765479163928,
+    "histamine": 8.76385785022567e-05,
+    "unknown": 0.05475220191928487
    }
   },
   "optic": {
    "fafb": {
-    "acetylcholine": 0.6648024649670775,
-    "gaba": 0.14655790984298497,
-    "glutamate": 0.17962814452135742,
-    "dopamine": 0.0008441668073611346,
-    "serotonin": 0.004716782036130339,
-    "octopamine": 0.0014139794023299004,
-    "histamine": 0.0,
-    "unknown": 0.002036552422758737
+    "acetylcholine": 0.5979140672489363,
+    "gaba": 0.12547589339987844,
+    "glutamate": 0.1720787876848919,
+    "dopamine": 0.00037324972539484486,
+    "serotonin": 0.0012370562327372002,
+    "octopamine": 0.00039457828113169315,
+    "histamine": 0.1020038178114769,
+    "unknown": 0.0005225496155527829
    },
    "malecns": {
-    "acetylcholine": 0.5921493586044204,
-    "gaba": 0.09518168656157296,
-    "glutamate": 0.18967489799430995,
-    "dopamine": 8.099707398070245e-05,
-    "serotonin": 0.00011137097672346586,
-    "octopamine": 0.00023286658769451954,
-    "histamine": 0.020198645323937673,
-    "unknown": 0.1023701768773603
+    "acetylcholine": 0.5921516219171425,
+    "gaba": 0.09517879561009193,
+    "glutamate": 0.18966913700238935,
+    "dopamine": 8.099461385817843e-05,
+    "serotonin": 0.00011136759405499535,
+    "octopamine": 0.00023285951484226298,
+    "histamine": 0.020198031830883246,
+    "unknown": 0.10237719191673754
    }
   }
  },
  "C1_weighted": {
   "central": {
    "fafb": {
-    "acetylcholine": 0.5133989664846185,
-    "gaba": 0.23034915669576975,
-    "glutamate": 0.18323275453688523,
-    "dopamine": 0.05349305235503726,
-    "serotonin": 0.01693674134334518,
-    "octopamine": 0.0025670074783734178,
-    "histamine": 0.0,
-    "unknown": 2.2321105970654972e-05
+    "acetylcholine": 0.5719467296335312,
+    "gaba": 0.22042148655408933,
+    "glutamate": 0.18229120839596988,
+    "dopamine": 0.010474348700003015,
+    "serotonin": 0.012036076783808093,
+    "octopamine": 0.002767568583664055,
+    "histamine": 4.0915576825074376e-05,
+    "unknown": 2.1665772109277478e-05
    },
    "malecns": {
-    "acetylcholine": 0.5563362706991469,
-    "gaba": 0.18632644885284239,
-    "glutamate": 0.15891340121861058,
-    "dopamine": 0.05765527146645584,
-    "serotonin": 0.010157607900661008,
-    "octopamine": 0.0067431720314077735,
-    "histamine": 0.00011466303403483263,
-    "unknown": 0.02375316479684064
+    "acetylcholine": 0.604478650798914,
+    "gaba": 0.1866722242923563,
+    "glutamate": 0.1582237931131011,
+    "dopamine": 0.010386121046678002,
+    "serotonin": 0.009977031735152294,
+    "octopamine": 0.0067408623416464804,
+    "histamine": 0.0001375286573816274,
+    "unknown": 0.023383788014770136
    }
   },
   "optic": {
    "fafb": {
-    "acetylcholine": 0.5973660821095031,
-    "gaba": 0.2319867567890791,
-    "glutamate": 0.1658917483178779,
-    "dopamine": 0.0017598843581827085,
-    "serotonin": 0.00048425213804789263,
-    "octopamine": 0.0024978905657772666,
-    "histamine": 0.0,
-    "unknown": 1.3385721531967435e-05
+    "acetylcholine": 0.5803532072688465,
+    "gaba": 0.2201518789729869,
+    "glutamate": 0.18534564509229934,
+    "dopamine": 0.0007535121700331914,
+    "serotonin": 0.0006970785343931618,
+    "octopamine": 0.0031943796399929465,
+    "histamine": 0.00949056278382442,
+    "unknown": 1.3735537623510579e-05
    },
    "malecns": {
-    "acetylcholine": 0.5831407025536838,
-    "gaba": 0.17370156138972673,
-    "glutamate": 0.21012072593950534,
-    "dopamine": 0.0011285613147446528,
-    "serotonin": 0.0012203286147708012,
-    "octopamine": 0.004841005832979062,
-    "histamine": 0.006741627742939338,
-    "unknown": 0.019105486611650273
+    "acetylcholine": 0.5833265227730284,
+    "gaba": 0.1735657325475045,
+    "glutamate": 0.21002806725190157,
+    "dopamine": 0.0011371249259558085,
+    "serotonin": 0.0012319487525980677,
+    "octopamine": 0.0048470896204517635,
+    "histamine": 0.006731830828605843,
+    "unknown": 0.01913168329995408
+   }
+  }
+ },
+ "C1_uncorrected": {
+  "central": {
+   "fafb": {
+    "acetylcholine": 0.5332644446398733,
+    "gaba": 0.11575499076598364,
+    "glutamate": 0.1739073080643743,
+    "dopamine": 0.12806701257585085,
+    "serotonin": 0.0387828687010817,
+    "octopamine": 0.0017148887520886465,
+    "histamine": 0.0,
+    "unknown": 0.008508486500747516
+   },
+   "malecns": {
+    "acetylcholine": 0.5592874983567766,
+    "gaba": 0.12205863020901801,
+    "glutamate": 0.15658823013890716,
+    "dopamine": 0.0971692739143771,
+    "serotonin": 0.008435213180842206,
+    "octopamine": 0.001511765479163928,
+    "histamine": 8.76385785022567e-05,
+    "unknown": 0.05486175014241269
+   }
+  },
+  "optic": {
+   "fafb": {
+    "acetylcholine": 0.6605027140587175,
+    "gaba": 0.14829744803830608,
+    "glutamate": 0.1808981454820787,
+    "dopamine": 0.0008957993409476277,
+    "serotonin": 0.00551343165797528,
+    "octopamine": 0.0014716703458425313,
+    "histamine": 0.0,
+    "unknown": 0.0024207910761322796
+   },
+   "malecns": {
+    "acetylcholine": 0.5921516219171425,
+    "gaba": 0.09517879561009193,
+    "glutamate": 0.18966913700238935,
+    "dopamine": 8.099461385817843e-05,
+    "serotonin": 0.00011136759405499535,
+    "octopamine": 0.00023285951484226298,
+    "histamine": 0.020198031830883246,
+    "unknown": 0.10237719191673754
    }
   }
  },
@@ -113,16 +159,16 @@
    }
   },
   "malecns": {
-   "p50": 0.9383207261562347,
-   "below_06": 0.01913739590055622,
+   "p50": 0.9387740194797516,
+   "below_06": 0.019089819268881168,
    "by_nt": {
-    "acetylcholine": 0.9625867009162903,
-    "glutamate": 0.8056671619415283,
-    "gaba": 0.8498416543006897,
+    "acetylcholine": 0.9625270366668701,
+    "glutamate": 0.8055779933929443,
+    "gaba": 0.8504477143287659,
     "dopamine": 0.7455506920814514,
-    "serotonin": 0.5969873070716858,
-    "octopamine": 0.7851150035858154,
-    "histamine": 0.8994032144546509
+    "serotonin": 0.5982437133789062,
+    "octopamine": 0.7786142826080322,
+    "histamine": 0.898795485496521
    }
   },
   "agreement": 0.7600347231219714,
@@ -133,42 +179,42 @@
   "glu_to_gaba": 0.16496861171143357
  },
  "C2b": {
-  "agree": 0.880607479911935,
+  "agree": 0.881659839616299,
   "kc_top": "dopamine",
   "kc_share": 0.9985236220472441,
-  "central_ach_pred": 0.5515367827589343,
-  "central_da_pred": 0.10082295171410385,
-  "central_ach_cons": 0.6779977246871445,
-  "central_da_cons": 0.008737201365187713
+  "central_ach_pred": 0.5592874983567766,
+  "central_da_pred": 0.0971692739143771,
+  "central_ach_cons": 0.681343741777037,
+  "central_da_cons": 0.008420314007543199
  },
  "C3": {
-  "n": 183,
-  "share_ge_09": 0.7759562841530054,
+  "n": 187,
+  "share_ge_09": 0.7807486631016043,
   "n_lt_08": 25,
   "lt_08": [
    "LB6",
    "putative_primary",
    "SLPpl2",
    "VPNp&v1_posterior",
-   "primary",
    "LB3__prim",
    "LHl3",
+   "primary",
+   "ALl1_dorsal",
    "DL1_ventral",
    "LALv1_ventral",
+   "DL1_dorsal",
    "TRdl_a",
    "MX12__prim",
-   "DL1_dorsal",
    "DM2_central",
    "VLPl4_dorsal",
    "CLp1",
    "MX7__prim",
    "CREa1_ventral",
-   "LHl4_dorsal",
-   "ALl1_dorsal",
-   "LHl1",
    "LB3",
+   "LHl4_dorsal",
    "TRdm",
    "VLPl4_anterior",
+   "LHl1",
    "MX3",
    "SLPav3"
   ]
@@ -180,30 +226,32 @@
    "motor_periphery"
   ],
   "n_neuropils": 12,
-  "n_neuropils_flip": 5,
+  "n_neuropils_flip": 7,
   "neuropils_flip": [
    "FB",
    "GNG",
    "IPS",
+   "PLP",
+   "PVLP",
    "SMP",
    "SPS"
   ],
   "n_shift": 9,
-  "shift_lo": 0.25807722616233253,
-  "shift_hi": 1.030612244897959
+  "shift_lo": 0.25196065601802053,
+  "shift_hi": 1.1532467532467532
  },
  "C5": {
   "fafb": {
-   "neurons": 5293,
-   "edges": 20645,
-   "density": 0.0007370435631481217,
-   "isolated": 117,
-   "isolated_5": 38,
-   "edges_1": 473647,
-   "edges_5": 42326,
-   "edges_5_isolated": 38,
+   "neurons": 5258,
+   "edges": 18653,
+   "density": 0.0006748233965500762,
+   "isolated": 145,
+   "isolated_5": 55,
+   "edges_1": 448478,
+   "edges_5": 36570,
+   "edges_5_isolated": 55,
    "median_in": 1.0,
-   "median_out": 3.0,
+   "median_out": 2.0,
    "ct_isolated_10": 138,
    "ct_isolated_5": 32
   },
@@ -222,9 +270,30 @@
    "ct_isolated_5": 0
   }
  },
+ "C5b": {
+  "fafb": {
+   "types": 22,
+   "types_mixed": 0,
+   "neurons_in_mixed_types": 0,
+   "mixed": []
+  },
+  "malecns": {
+   "types": 24,
+   "types_mixed": 1,
+   "neurons_in_mixed_types": 12,
+   "mixed": [
+    {
+     "cell_type": "PAM03",
+     "neurons": 12,
+     "top_share": 0.5833333333333334,
+     "mix": "dopamine 7; unknown 5"
+    }
+   ]
+  }
+ },
  "C6": {
   "n_seeds": 100,
-  "z_recip": 103.23953636514733,
+  "z_recip": 103.3053415225948,
   "sig": [
    "reciprocal pair",
    "021D",
@@ -235,7 +304,6 @@
    "030T",
    "030C",
    "201",
-   "120D",
    "120C",
    "210",
    "300"
@@ -243,7 +311,6 @@
   "over": [
    "reciprocal pair",
    "201",
-   "120D",
    "210",
    "300"
   ],
@@ -257,8 +324,8 @@
    "030C",
    "120C"
   ],
-  "obs_recip": 4950,
-  "null_recip": 2420.09,
-  "z_abs_max": 1639.136339203237
+  "obs_recip": 4884,
+  "null_recip": 2415.17,
+  "z_abs_max": 1958.446834599838
  }
 }

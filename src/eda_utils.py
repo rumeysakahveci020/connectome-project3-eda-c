@@ -12,8 +12,7 @@ import numpy as np
 import pandas as pd
 
 import config
-from eda_shared.eda_helpers import add_provisional_flags, basic_features, canonical_neuropil, load_neuropil_table
-from src.fetch_malecns import NERVE_CORD_ROIS
+from eda_shared.eda_helpers import MALECNS_NERVE_CORD, add_provisional_flags, basic_features, canonical_neuropil, load_neuropil_table
 
 ROOT = Path(__file__).resolve().parent.parent
 FIG_DIR = ROOT / "figures" / "eda"
@@ -22,10 +21,16 @@ LABEL = {"fafb": "FAFB", "malecns": "MaleCNS"}
 NT_ORDER = ["acetylcholine", "gaba", "glutamate", "dopamine", "serotonin", "octopamine", "histamine", "unknown"]
 NT_COLORS = {"acetylcholine": "#1f77b4", "gaba": "#d62728", "glutamate": "#2ca02c", "dopamine": "#ff7f0e",
              "serotonin": "#9467bd", "octopamine": "#8c564b", "histamine": "#e377c2", "unknown": "#9e9e9e"}
-SUPER_ORDER = ["sensory", "optic", "visual_projection", "central", "visual_centrifugal",
-               "ascending", "descending", "motor", "endocrine", "unknown"]
+SUPER_ORDER = ["sensory", "sensory_ascending", "optic", "visual_projection", "central", "visual_centrifugal",
+               "ascending", "descending", "motor", "endocrine", "efferent", "vnc_intrinsic", "unknown"]
 GROUP_ORDER = ["sensory_periphery", "higher_order", "motor_periphery", "unknown"]
 POPULATIONS = ("all", "central", "optic")
+# Week 4 correction 1: every analysis of transmitter labels uses nt_type_corrected. C2 is the exception on purpose: it studies the
+# classifier's own output (nt_type, nt_confidence), so it keeps nt_type.
+NT_COL = "nt_type_corrected"
+NT_COL_TEXT = ("nt_type_corrected (FAFB: nt_known where it names one transmitter, else top_nt; male CNS: Kenyon-cell types set to "
+               "acetylcholine, else predictedNt)")
+SHARED_VERSION = "eda_shared v0.2.0"
 
 
 def _cache_dir() -> None:
@@ -35,23 +40,6 @@ def _cache_dir() -> None:
         config.CACHE_DIR = Path(override)
 
 
-# Group decision (15 Oct): two rows for male CNS ROIs the provisional table does not have. They go in through
-# add_provisional_flags(table=...) so that eda_shared stays unchanged; a new eda_shared with the same rows makes
-# this addition a no-op.
-GROUP_ROWS = pd.DataFrame(
-    {"full_name": ["optic lobe, neuropil not specified", "central brain, neuropil not specified"],
-     "is_optic": [True, False], "region_group": ["unknown", "unknown"],
-     "status": ["group decision", "group decision"],
-     "basis": ["Second ROI is ME/LO/LOP/AME/LA for 98-100% of these neurons",
-               "Second ROI is central brain (GNG, SAD, SMP...), never optic"]},
-    index=pd.Index(["Optic-unspecified", "CentralBrain-unspecified"], name="neuropil"))
-
-
-def neuropil_table() -> pd.DataFrame:
-    t = load_neuropil_table()
-    return pd.concat([t, GROUP_ROWS.loc[~GROUP_ROWS.index.isin(t.index)]])
-
-
 def flags(neurons: pd.DataFrame, nerve) -> pd.DataFrame:
     """add_provisional_flags, with one local escape hatch.
 
@@ -59,7 +47,7 @@ def flags(neurons: pd.DataFrame, nerve) -> pd.DataFrame:
     group, never add it yourself. If you must look at the data before the group answers, set
     EDA_UNMAPPED_REGION=unknown: the rejected names become 'unknown' (so those neurons count as not in
     the brain) and every one is printed. Do not hand in results made this way without saying so."""
-    table = neuropil_table()
+    table = load_neuropil_table()
     try:
         return add_provisional_flags(neurons, table=table, nerve_cord=nerve)
     except ValueError as exc:
@@ -94,7 +82,7 @@ def load(name: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     else:
         n_p = config.cache_path("malecns", "neurons", rel, "traced")
         e_p = config.cache_path("malecns", "edges", rel, "traced", min_syn=1, conf=config.MALECNS_SYN_CONFIDENCE)
-        nerve = NERVE_CORD_ROIS
+        nerve = MALECNS_NERVE_CORD
     neurons = flags(pd.read_parquet(n_p), nerve)
     edges = pd.read_parquet(e_p)
     if name == "malecns":

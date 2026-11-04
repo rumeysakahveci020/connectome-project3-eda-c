@@ -23,7 +23,7 @@ Question: how reliable are transmitter labels, and what does a local circuit loo
 
 Everything below is read from `data/cache`; there are no network calls. EDA looks at structure and labels, never at model performance.
 Datasets: FlyWire FAFB (materialisation 783, annotations v3.2.0, Buhmann) and male CNS v1.0 (Traced, confidence >= 0.5, brain part only).
-Provisional region flags come from `eda_shared` v0.1.1 and may change after Project 1's review."""),
+The tables are the corrected ones (`eda_shared` v0.2.0, Week 4 Shared Data Corrections). Analyses of transmitter labels use `nt_type_corrected`; C2 studies the classifier's own `nt_type`, so it keeps that column. The figures from before the correction are kept in `figures/eda_v0.1.1/`."""),
 ("code", SETUP),
 ("code", """import os, warnings
 import numpy as np, pandas as pd
@@ -36,7 +36,7 @@ N_SEEDS = int(os.environ.get("EDA_N_SEEDS", 100))      # C6 null graphs; the pla
 WORKERS = int(os.environ.get("EDA_WORKERS", 1))        # raise to use several cores for C6
 C6_MAX_MIN = float(os.environ["EDA_C6_MAX_MINUTES"]) if os.environ.get("EDA_C6_MAX_MINUTES") else None   # time budget for C6
 R = {"open_points": []}
-CAP = "FAFB 783 (annotations v3.2.0, Buhmann) and male CNS v1.0 (Traced, conf >= 0.5, brain part). Provisional flags: eda_shared v0.1.1."
+CAP = "FAFB 783 (annotations v3.2.0, Buhmann) and male CNS v1.0 (Traced, conf >= 0.5, brain part). Tables: eda_shared v0.2.0 (corrected)."
 data = {d: U.load(d) for d in C.DS}
 R["unspecified"] = {k: int(v) for k, v in data["malecns"][0]["region"].astype(str).value_counts().items() if "unspecified" in k}
 for d, (n, e) in data.items():
@@ -59,6 +59,7 @@ for pop in ("central", "optic"):
             if by == "super_class" and weighted:
                 R["C1_weighted"][pop] = {d: tabs[d].loc["overall", U.NT_ORDER].astype(float).to_dict() for d in C.DS}
             plt.show()
+R["C1_uncorrected"] = {pop: {d: C.c1_shares(*data[d], pop, "super_class", False, nt_col="nt_type").loc["overall", U.NT_ORDER].astype(float).to_dict() for d in C.DS} for pop in ("central", "optic")}
 pd.DataFrame({(pop, d): pd.Series(R["C1"][pop][d]) for pop in R["C1"] for d in C.DS}).round(3)"""),
 
 ("md", """## C2. How confident are the labels
@@ -160,6 +161,19 @@ R["C5"] = {d: {"neurons": int(pick(d, 10).neurons), "edges": int(pick(d, 10).edg
                "median_in": float(pick(d, 10).median_in), "median_out": float(pick(d, 10).median_out),
                "ct_isolated_10": int(pick(d, 10, "cell_type").isolated), "ct_isolated_5": int(pick(d, 5, "cell_type").isolated)} for d in C.DS}"""),
 
+("md", """### C5b. What transmitter does each mushroom body type carry?
+
+**Why:** the corrected labels still mix transmitters inside some types (nt_known is per neuron and a few rows carry another type's entry), and Project 3 assigns signs per type. One row per type, on `nt_type_corrected`; `top_share` below 0.9 means the type needs a look before it gets one sign."""),
+("code", """mix = C.mb_type_mix(data["fafb"][0])
+mixm = C.mb_type_mix(data["malecns"][0])
+(U.ROOT / "reports").mkdir(exist_ok=True)
+mix.to_csv(U.ROOT / "reports" / "c5b_mb_type_mix_fafb.csv", index=False); mixm.to_csv(U.ROOT / "reports" / "c5b_mb_type_mix_malecns.csv", index=False)
+R["C5b"] = {d: {"types": int(len(m)), "types_mixed": int((m["top_share"] < 0.9).sum()), "neurons_in_mixed_types": int(m.loc[m["top_share"] < 0.9, "neurons"].sum()),
+               "mixed": m.loc[m["top_share"] < 0.9, ["cell_type", "neurons", "top_share", "mix"]].head(15).to_dict("records")} for d, m in (("fafb", mix), ("malecns", mixm))}
+print("FlyWire types with >= 5 mushroom body neurons:", len(mix), "| with a top share below 0.9:", R["C5b"]["fafb"]["types_mixed"])
+print("male CNS types with >= 5 mushroom body neurons:", len(mixm), "| with a top share below 0.9:", R["C5b"]["malecns"]["types_mixed"])
+display(mix.head(15).round(3)); display(mixm.head(15).round(3))"""),
+
 ("md", """## C6. Non-random structure in the subgraph
 
 **Why:** checks the shared randomiser on real data before every project's null model relies on it, and shows structure beyond degree.
@@ -188,7 +202,11 @@ Writes a draft of `reports/eda_C.md` from the numbers above. The numbers are exa
 INTEGRATION = [
 ("md", "# 00 Integration: validators and the Step 0 count check\n\nRun after every fetch. Every check raises naming the column."),
 ("code", SETUP),
-("code", """import pandas as pd, config
+("code", """import os
+from pathlib import Path
+import pandas as pd, config
+if os.environ.get("EDA_CACHE_DIR"):          # dry runs on synthetic files only
+    config.CACHE_DIR = Path(os.environ["EDA_CACHE_DIR"])
 from src.validators import validate_neurons, validate_edges, assert_interchangeable
 rows = {"fafb": ("783", f"ann{config.FAFB_ANNOTATIONS_TAG[1:]}", config.FAFB_SYNAPSE_TABLE, {}),
         "malecns": ("v1.0", "traced", "traced", {"conf": config.MALECNS_SYN_CONFIDENCE})}
@@ -201,7 +219,7 @@ for d, (rel, nsrc, esrc, kw) in rows.items():
     T[d] = (n, e); print(d, "validators passed:", len(n), "neurons,", len(e), "edges")
 assert_interchangeable(T["fafb"][0], T["malecns"][0]); assert_interchangeable(T["fafb"][1], T["malecns"][1])
 print("assert_interchangeable passed")"""),
-("code", """expected = {"fafb neurons": 139_248, "fafb edges >= 5": 2_700_513, "malecns neurons": 165_122}
+("code", """expected = {"fafb neurons": 139_255, "fafb edges >= 5": 2_700_513}
 got = {"fafb neurons": len(T["fafb"][0]), "fafb edges >= 5": int((T["fafb"][1].syn_count >= 5).sum()),
        "malecns neurons": len(T["malecns"][0]), "malecns edges >= 5 (agree one number with Projects 1 and 4)": int((T["malecns"][1].syn_count >= 5).sum())}
 pd.DataFrame({"got": got, "expected": {**expected, "malecns edges >= 5 (agree one number with Projects 1 and 4)": None}})"""),

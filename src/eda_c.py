@@ -36,11 +36,12 @@ def _total_out_syn(neurons: pd.DataFrame, edges: pd.DataFrame) -> pd.Series:
     return _OUT_SYN[key]
 
 
-def c1_shares(neurons: pd.DataFrame, edges: pd.DataFrame, pop: str, by: str, weighted: bool) -> pd.DataFrame:
-    """Share of neurons (or of total_out_syn) per nt_type: overall, then per `by` group."""
+def c1_shares(neurons: pd.DataFrame, edges: pd.DataFrame, pop: str, by: str, weighted: bool, nt_col: str | None = None) -> pd.DataFrame:
+    """Share of neurons (or of total_out_syn) per transmitter label: overall, then per `by` group. The label is nt_type_corrected
+    (Week 4 correction 1) unless `nt_col` says otherwise (nt_type shows the table before the correction)."""
     n = U.population(neurons, pop).copy()
     n["w"] = n["neuron_id"].map(_total_out_syn(neurons, edges)).fillna(0).astype(float) if weighted else 1.0
-    n["nt_type"] = n["nt_type"].astype(str)
+    n["nt_type"] = n[nt_col or U.NT_COL].astype(str)
     rows = {}
     def add(label, d):
         tot = d["w"].sum()
@@ -77,7 +78,7 @@ def headline(ax, title: str, how_to_read: str, base: float = 8.0, chars_per_inch
 
 
 def c1_caption(cap: str, pop: str, weighted: bool) -> str:
-    return (f"{cap} Population: {pop}. Shares of {'total output synapses' if weighted else 'neurons'} per nt_type (FAFB top_nt, male CNS predictedNt). "
+    return (f"{cap} Population: {pop}. Shares of {'total output synapses' if weighted else 'neurons'} per {U.NT_COL_TEXT}. "
             f"Central = is_optic False (also neurons with no assigned region); optic = is_optic True. Rows with fewer than {SMALL_N} neurons (*) are faded "
             f"and not interpreted. Threshold: {'none; all cached edges (1 synapse) summed' if weighted else 'none (neuron counts)'}.")
 
@@ -208,8 +209,8 @@ FAST = ["acetylcholine", "gaba", "glutamate"]
 
 
 def c3_hemilineages(fafb_neurons: pd.DataFrame, min_n: int = 20) -> pd.DataFrame:
-    n = fafb_neurons[fafb_neurons["hemilineage"].notna() & fafb_neurons["nt_type"].astype(str).isin(FAST)].copy()
-    n["nt_type"] = n["nt_type"].astype(str)
+    n = fafb_neurons[fafb_neurons["hemilineage"].notna() & fafb_neurons[U.NT_COL].astype(str).isin(FAST)].copy()
+    n["nt_type"] = n[U.NT_COL].astype(str)
     g = n.groupby("hemilineage")
     size = g.size()
     top = g["nt_type"].agg(lambda s: s.value_counts().index[0])
@@ -265,7 +266,7 @@ RULES = {"Rule 1: ACh = E; GABA, Glu = I": ({"acetylcholine"}, {"gaba", "glutama
 def c4_net_index(neurons: pd.DataFrame, edges: pd.DataFrame, tau: int = 10) -> pd.DataFrame:
     """Net index (E - I) / (E + I) per central postsynaptic neuron, under both rules."""
     e = edges[edges["syn_count"] >= tau]
-    pre_nt = neurons.set_index("neuron_id")["nt_type"].astype(str)
+    pre_nt = neurons.set_index("neuron_id")[U.NT_COL].astype(str)
     e = e.assign(nt=e["pre_id"].map(pre_nt))
     central = neurons[~neurons["is_optic"]]
     e = e[e["post_id"].isin(set(central["neuron_id"]))]
@@ -509,3 +510,21 @@ def c2b_consensus(malecns_neurons: pd.DataFrame, consensus_path) -> pd.DataFrame
     m = malecns_neurons.merge(c[["neuron_id", "consensus"]], on="neuron_id", how="left")
     return pd.crosstab(m["nt_type"].astype(str).rename("predictedNt (nt_type)"),
                        m["consensus"].fillna("missing").rename("consensusNt"))
+
+
+# ----------------------------------------------------------------------------- Project 3 lock note: the mushroom-body types
+def mb_type_mix(neurons: pd.DataFrame, min_n: int = 5) -> pd.DataFrame:
+    """Transmitter mix of every mushroom-body cell type, on nt_type_corrected (Week 4: 'check each type's mix before you assign
+    it a single value'). One row per cell type among the mushroom-body neurons (region MB_CA, MB_PED, MB_VL, MB_ML):
+    neurons, the commonest transmitter and its share, how many transmitters appear, and the mix as text."""
+    mb = neurons[neurons["neuropil"].astype(str).isin(mb_neuropils()) & neurons["cell_type"].notna()].copy()
+    mb["nt"] = mb[U.NT_COL].astype(str)
+    rows = []
+    for t, g in mb.groupby("cell_type"):
+        vc = g["nt"].value_counts()
+        rows.append({"cell_type": t, "neurons": len(g), "top_nt": vc.index[0], "top_share": float(vc.iloc[0] / len(g)),
+                     "n_nt": int(len(vc)), "mix": "; ".join(f"{k} {v}" for k, v in vc.items())})
+    out = pd.DataFrame(rows)
+    if out.empty:
+        return pd.DataFrame(columns=["cell_type", "neurons", "top_nt", "top_share", "n_nt", "mix"])
+    return out[out["neurons"] >= min_n].sort_values(["top_share", "neurons"], ascending=[True, False]).reset_index(drop=True)

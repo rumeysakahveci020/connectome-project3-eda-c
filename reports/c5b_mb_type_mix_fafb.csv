@@ -1,0 +1,23 @@
+cell_type,neurons,top_nt,top_share,n_nt,mix
+KCg-m,2110,acetylcholine,1.0,1,acetylcholine 2110
+KCab,1643,acetylcholine,1.0,1,acetylcholine 1643
+KCapbp-m,337,acetylcholine,1.0,1,acetylcholine 337
+KCapbp-ap2,298,acetylcholine,1.0,1,acetylcholine 298
+KCapbp-ap1,274,acetylcholine,1.0,1,acetylcholine 274
+KCg-d,132,acetylcholine,1.0,1,acetylcholine 132
+KCab-p,128,acetylcholine,1.0,1,acetylcholine 128
+PAM04,32,dopamine,1.0,1,dopamine 32
+PAM06,29,dopamine,1.0,1,dopamine 29
+PAM01,27,dopamine,1.0,1,dopamine 27
+PAM12,19,dopamine,1.0,1,dopamine 19
+PAM08,17,dopamine,1.0,1,dopamine 17
+PAM11,16,dopamine,1.0,1,dopamine 16
+PAM14,16,dopamine,1.0,1,dopamine 16
+PAM02,15,dopamine,1.0,1,dopamine 15
+PAM10,15,dopamine,1.0,1,dopamine 15
+PAM07,12,dopamine,1.0,1,dopamine 12
+PAM03,10,dopamine,1.0,1,dopamine 10
+PAM05,9,dopamine,1.0,1,dopamine 9
+PAM13,8,dopamine,1.0,1,dopamine 8
+PAM09,7,dopamine,1.0,1,dopamine 7
+VM5d_adPN,7,acetylcholine,1.0,1,acetylcholine 7

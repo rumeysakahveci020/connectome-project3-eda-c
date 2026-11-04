@@ -29,14 +29,20 @@ def test_table_covers_every_flywire_neuropil():
     assert mapped.isin(table.index).all()
 
 
-def test_optic_lobe_is_exactly_five_neuropils():
+def test_optic_lobe_is_five_neuropils_plus_optic_unspecified():
+    # since v0.2.0: the MaleCNS label Optic-unspecified is optic too (correction 6)
     table = load_neuropil_table()
-    assert set(table.index[table["is_optic"]]) == {"LA", "ME", "AME", "LO", "LOP"}
+    assert set(table.index[table["is_optic"]]) == {"LA", "ME", "AME", "LO", "LOP",
+                                                    "Optic-unspecified"}
 
 
 def test_region_group_vocabulary():
     table = load_neuropil_table()
-    assert set(table["region_group"]) == {"sensory_periphery", "motor_periphery", "higher_order"}
+    # since v0.2.0: the two unspecified rows have region_group unknown
+    assert set(table["region_group"]) == {"sensory_periphery", "motor_periphery",
+                                          "higher_order", "unknown"}
+    assert set(table.index[table["region_group"] == "unknown"]) == {
+        "Optic-unspecified", "CentralBrain-unspecified"}
 
 
 def test_neuprint_style_and_aliases():

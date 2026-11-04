@@ -43,3 +43,5 @@ WED,wedge,False,higher_order,debatable,Second-order auditory and mechanosensory 
 GOR,gorget,False,higher_order,debatable,Ventromedial neuropil
 EPA,epaulette,False,higher_order,debatable,Ventromedial neuropil
 CAN,cantle,False,higher_order,debatable,Periesophageal neuropil next to the GNG
+Optic-unspecified,"optic lobe, outside named neuropils",True,unknown,agreed,"MaleCNS label; group rule of 15 Oct, ratified in Week 4 correction 6"
+CentralBrain-unspecified,"central brain, outside named neuropils",False,unknown,agreed,"MaleCNS label; group rule of 15 Oct, ratified in Week 4 correction 6"

@@ -5,8 +5,8 @@
     python tools/rebuild_all.py --yes              # no questions
     python tools/rebuild_all.py --skip-build       # keep data/cache; rerun notebooks, summary, verification only
 
-Order: preflight -> backup -> clean -> tests -> FlyWire cache -> male CNS cache (group region rule) -> region rule check
-       -> 00_integration -> eda_C (100 null graphs) -> summary from the numbers -> verification.
+Order: preflight -> backup (the old figures are kept in figures/eda_v0.1.1) -> clean -> tests -> FlyWire cache -> male CNS cache
+       (eda_shared v0.2.0 corrections) -> Step 0 table -> 00_integration -> eda_C (100 null graphs) -> summary from the numbers -> verification.
 It stops at the first failure and says which step failed. Everything is also written to logs/rebuild_<time>.log.
 """
 import argparse
@@ -39,8 +39,11 @@ RAW_FILES = {
     "FlyWire edges (Zenodo, Buhmann)": RAW / "proofread_connections_783.feather",
     "FlyWire annotations v3.2.0": RAW / "Supplemental_file1_neuron_annotations.tsv",
     "FlyWire proofread ids": RAW / "proofread_root_ids_783.npy",
-    "male CNS edges (connectome-weights)": RAW / "connectome-weights-male-cns-v1.0-minconf-0.5.feather",
+    "FlyWire neuropil counts, pre (Zenodo 10676866)": RAW / "per_neuron_neuropil_count_pre_783.feather",
+    "FlyWire neuropil counts, post (Zenodo 10676866)": RAW / "per_neuron_neuropil_count_post_783.feather",
+    "male CNS syn-partners (6.8 GB)": RAW / "syn-partners-male-cns-v1.0-minconf-0.5.feather",
 }
+WEIGHTS = RAW / "connectome-weights-male-cns-v1.0-minconf-0.5.feather"       # optional cross-check
 
 
 def say(msg):
@@ -93,9 +96,11 @@ for rel in ("config.py", "eda_shared/eda_helpers.py", "src/build_cache.py", "not
         problems.append(f"missing {rel}")
 # the code must be the newest version (an old copy would reproduce the old mistakes)
 MARKERS = [("src/eda_c.py", "hue_order", "C2 colours (same colour per transmitter as in C1)"),
-           ("src/fetch_malecns.py", "roi_connection_counts", "male CNS region = upstream + downstream (group decision)"),
-           ("src/eda_utils.py", "GROUP_ROWS", "two group rows for the unspecified ROIs"),
-           ("notebooks/eda_C.ipynb", "Threshold:", "figure captions that state the threshold")]
+           ("src/eda_c.py", "mb_type_mix", "the mushroom body type-mix check (Week 4)"),
+           ("src/fetch_malecns.py", "read_syn_partners", "male CNS brain part by synapse location (Week 4 correction 4)"),
+           ("src/eda_utils.py", "NT_COL", "nt_type_corrected in the analyses (Week 4 correction 1)"),
+           ("notebooks/eda_C.ipynb", "Threshold:", "figure captions that state the threshold"),
+           ("config.py", 'CONFIG_VERSION = "0.2.0"', "eda_shared v0.2.0 and its config.py (copy both unchanged)")]
 for rel, marker, why in MARKERS:
     path = ROOT / rel
     if path.exists() and marker not in path.read_text(encoding="utf-8", errors="ignore"):
@@ -104,6 +109,8 @@ if not args.skip_build:
     for label, path in RAW_FILES.items():
         if not path.exists():
             problems.append(f"missing raw file: {label}: {path}")
+    if not WEIGHTS.exists():
+        say("NOTE: connectome-weights is not in data/raw: the per-neuropil counts will not be cross-checked against it (optional)")
     pkl = RAW / "neuprint_malecns_v1.0_traced.pkl"
     if not pkl.exists() and not (ROOT / ".env").exists():
         problems.append("no saved neuPrint answer and no .env with NEUPRINT_TOKEN")
@@ -129,21 +136,27 @@ if not DRY:
             shutil.copytree(ROOT / name, backup / name)
     for p_ in to_clean:
         shutil.rmtree(p_, ignore_errors=True)
+    # Week 4: "keep the old figures, so the change is visible". The figures drawn before the corrections stay in the repository.
+    old = backup / "figures" / "eda_v0.1.1"
+    old = old if old.exists() else backup / "figures" / "eda"
+    if old.exists() and any(old.glob("*.png")):
+        shutil.copytree(old, ROOT / "figures" / "eda_v0.1.1")
+        say("kept the previous figures in figures/eda_v0.1.1")
 
 # ------------------------------------------------------------------ 2. clean notebooks, tests
 run("2. tests (project and eda_shared)", [PY, "-m", "pytest", "tests", "eda_shared/tests", "-q"])
 
 # ------------------------------------------------------------------ 3. caches
 if not args.skip_build:
-    run("3a. FlyWire cache (proofread list, group provisional maps)",
+    run("3a. FlyWire cache (corrections 1, 2, 3 and 6 by eda_shared v0.2.0)",
         [PY, "-m", "src.build_cache", "--only", "fafb", "--force", "--fafb-edges", RAW_FILES["FlyWire edges (Zenodo, Buhmann)"],
          "--fafb-annotations", RAW_FILES["FlyWire annotations v3.2.0"], "--fafb-proofread-ids", RAW_FILES["FlyWire proofread ids"],
-         "--provisional-maps"])
-    run("3b. male CNS cache (region = upstream + downstream, group decision D15)",
-        [PY, "-m", "src.build_cache", "--only", "malecns", "--force", "--malecns-edges", RAW_FILES["male CNS edges (connectome-weights)"],
-         "--provisional-maps"])
-    run("3c. does the saved neuPrint answer carry upstream and downstream?", [PY, "tools/check_roiinfo_rule.py"])
-    run("3d. FAFB neurons without a region (UNASGD), for the group's note", [PY, "tools/check_unassigned.py"])
+         "--fafb-count-pre", RAW_FILES["FlyWire neuropil counts, pre (Zenodo 10676866)"],
+         "--fafb-count-post", RAW_FILES["FlyWire neuropil counts, post (Zenodo 10676866)"]])
+    run("3b. male CNS cache (brain part by synapse location, corrections 1, 2, 4 and 6)",
+        [PY, "-m", "src.build_cache", "--only", "malecns", "--force", "--malecns-syn-partners", RAW_FILES["male CNS syn-partners (6.8 GB)"]]
+        + (["--malecns-weights", WEIGHTS] if WEIGHTS.exists() else []))
+    run("3c. Step 0 on the corrected tables (reports/step0_C.md)", [PY, "tools/step0.py"])
 
 # ------------------------------------------------------------------ 4. notebooks
 env = dict(os.environ)

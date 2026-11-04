@@ -113,8 +113,28 @@ def step0():
     check("FAFB neurons = 139,255 (the proofread list; the plan's 139,248 is the annotation file)", len(n_f) == 139_255, f"{len(n_f):,}")
     sc = pd.read_parquet(config.cache_path("fafb", "edges", "783", config.FAFB_SYNAPSE_TABLE, min_syn=1), columns=["syn_count"])["syn_count"]
     check("FAFB edges >= 5 synapses = 2,700,513", int((sc >= 5).sum()) == 2_700_513, f"{int((sc >= 5).sum()):,}")
+    import json
+    rep_m = config.CACHE_DIR / "step0_malecns.json"
+    rep_f = config.CACHE_DIR / "step0_fafb.json"
+    if rep_f.exists():
+        rf = json.loads(rep_f.read_text(encoding="utf-8"))
+        check("FAFB: 7 annotation rows dropped, 14 proofread ids added (Corrections, item 3)",
+              (rf.get("dropped_not_in_release"), rf.get("added_unknown")) == (7, 14), f"{rf.get('dropped_not_in_release')}, {rf.get('added_unknown')}")
+        ref = {"optic": 77537, "central": 32383, "sensory": 16904, "visual_projection": 8038, "ascending": 1750, "descending": 1303,
+               "sensory_ascending": 612, "visual_centrifugal": 524, "motor": 110, "endocrine": 80, "unknown": 14}
+        check("FAFB super_class counts equal the Corrections reference", rf.get("super_class_counts") == ref, str(rf.get("super_class_counts")))
+        check("FAFB self-connections dropped = 0", rf.get("self_connections") == 0, str(rf.get("self_connections")))
+    else:
+        print("[INFO] no step0_fafb.json: build the cache with src.build_cache to record the Step 0 counts")
+    if rep_m.exists():
+        rm = json.loads(rep_m.read_text(encoding="utf-8"))
+        check("male CNS Traced neurons before the crop = 165,122", rm.get("neurons_traced") == 165_122, f"{rm.get('neurons_traced'):,}")
+        check("male CNS self-connections dropped = 101", rm.get("self_connections") == 101, str(rm.get("self_connections")))
+        wc = rm.get("weights_check")
+        if wc:
+            check("male CNS per-neuropil counts add up to connectome-weights", bool(wc.get("agree")), str(wc))
     n_m = pd.read_parquet(config.cache_path("malecns", "neurons", "v1.0", "traced"), columns=["neuron_id"])
-    check("male CNS neurons = 165,122", len(n_m) == 165_122, f"{len(n_m):,}")
+    print(f"[INFO] male CNS brain-part neurons kept: {len(n_m):,} (compare with the first repository to post its table)")
     sm = pd.read_parquet(config.cache_path("malecns", "edges", "v1.0", "traced", min_syn=1, conf=config.MALECNS_SYN_CONFIDENCE), columns=["syn_count"])["syn_count"]
     print(f"[INFO] male CNS edges >= 5 synapses: {int((sm >= 5).sum()):,} (agree one number with Projects 1 and 4)")
 
@@ -188,7 +208,7 @@ def independent():
     for d in C.DS:
         n = DATA[d][0]
         c = n[~n["is_optic"].astype(bool)]
-        by_hand = float((c["nt_type"].astype(str).to_numpy() == "acetylcholine").sum()) / len(c)
+        by_hand = float((c["nt_type_corrected"].astype(str).to_numpy() == "acetylcholine").sum()) / len(c)
         check(f"C1 central {d}: acetylcholine share by counting", close(by_hand, R["C1"]["central"][d]["acetylcholine"], 1e-9), f"{by_hand:.4f}")
     check("C5 mushroom body neuropils are calyx, peduncle and the two lobes", sorted(C.mb_neuropils()) == ["MB_CA", "MB_ML", "MB_PED", "MB_VL"], str(sorted(C.mb_neuropils())), warn=True)
     # C5: edges and isolated neurons of the mushroom body subgraph with numpy only
@@ -218,7 +238,7 @@ def independent():
     from src import eda_c as C_
     n, e = DATA["fafb"]
     net = C_.c4_net_index(n, e, 10)
-    nt = dict(zip(n["neuron_id"].to_numpy(), n["nt_type"].astype(str).to_numpy()))
+    nt = dict(zip(n["neuron_id"].to_numpy(), n["nt_type_corrected"].astype(str).to_numpy()))
     e10 = e[e["syn_count"] >= 10]
     sample = pd.concat([g.sample(min(150, len(g)), random_state=0) for _, g in net.groupby("rule")])
     inc = {k_: g for k_, g in e10[e10["post_id"].isin(set(sample["neuron_id"]))].groupby("post_id")}
@@ -236,10 +256,10 @@ def independent():
     check(f"C4 net index of {len(sample)} random neurons by explicit loops", bad == 0, f"{bad} differ" if bad else "")
     # C3: five hemilineages by a python loop
     tab = C.c3_hemilineages(n)
-    fast = n[n["hemilineage"].notna() & n["nt_type"].astype(str).isin(["acetylcholine", "gaba", "glutamate"])]
+    fast = n[n["hemilineage"].notna() & n["nt_type_corrected"].astype(str).isin(["acetylcholine", "gaba", "glutamate"])]
     bad = 0
     for h in tab.index[: min(5, len(tab))]:
-        vals = fast.loc[fast["hemilineage"] == h, "nt_type"].astype(str).tolist()
+        vals = fast.loc[fast["hemilineage"] == h, "nt_type_corrected"].astype(str).tolist()
         top = max(vals.count(t) for t in set(vals)) / len(vals)
         if abs(top - float(tab.loc[h, "share"])) > 1e-12:
             bad += 1

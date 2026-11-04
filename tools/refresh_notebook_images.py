@@ -1,54 +1,181 @@
-"""Replace the embedded C2 and C3 images of the executed notebook with the current files in figures/eda.
+"""Rebuild everything from scratch, in the right order, and verify it.
 
-Use it after `python tools/redo_figures_c2_c3.py`. Tables, text and every other output stay as they are.
-No re-run, no new numbers: the images come from your own cache through the figure files.
+    python tools/rebuild_all.py --dry-run          # show the plan, run nothing
+    python tools/rebuild_all.py                    # asks once before deleting the old outputs
+    python tools/rebuild_all.py --yes              # no questions
+    python tools/rebuild_all.py --skip-build       # keep data/cache; rerun notebooks, summary, verification only
 
-    python tools/refresh_notebook_images.py
+Order: preflight -> backup (the old figures are kept in figures/eda_v0.1.1) -> clean -> tests -> FlyWire cache -> male CNS cache
+       (eda_shared v0.2.0 corrections) -> Step 0 table -> 00_integration -> eda_C (100 null graphs) -> summary from the numbers -> verification.
+It stops at the first failure and says which step failed. Everything is also written to logs/rebuild_<time>.log.
 """
-import base64
-import json
-import re
+import argparse
+import importlib
+import os
+import shutil
+import subprocess
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-from src import eda_utils as U  # noqa: E402
+RAW = ROOT / "data" / "raw"
 
-path = ROOT / "notebooks" / "eda_C.ipynb"
-nb = json.load(open(path, encoding="utf-8"))
-done = 0
-for cell in nb["cells"]:
-    if cell["cell_type"] != "code":
-        continue
-    src = "".join(cell["source"]) if isinstance(cell["source"], list) else cell["source"]
-    if 'U.fig_name("C1"' in src:                       # eight images in one cell, in loop order
-        names = [U.fig_name("C1", "both", pop, extra=by + ("_weighted" if w else ""))
-                 for pop in ("central", "optic") for by in ("super_class", "region_group") for w in (False, True)]
-        imgs = [o for o in cell.get("outputs", []) if "data" in o and "image/png" in o["data"]]
-        if len(imgs) != len(names) or not all((U.FIG_DIR / n).exists() for n in names):
-            print(f"skipped C1: {len(imgs)} images in the cell, {len(names)} expected")
-            continue
-        for o, n in zip(imgs, names):
-            o["data"]["image/png"] = base64.b64encode((U.FIG_DIR / n).read_bytes()).decode("ascii") + "\n"
-        print(f"C1: {len(names)} embedded images replaced")
-        done += len(names)
-        continue
-    m = re.search(r'U\.fig_name\("(C[23])",\s*"(\w+)",\s*"(\w+)"', src)
-    if not m:
-        continue
-    png = U.FIG_DIR / U.fig_name(m.group(1), m.group(2), m.group(3))
-    imgs = [o for o in cell.get("outputs", []) if "data" in o and "image/png" in o["data"]]
-    if not png.exists() or len(imgs) != 1:
-        print(f"skipped {m.group(1)}: file exists={png.exists()}, images in cell={len(imgs)}")
-        continue
-    imgs[0]["data"]["image/png"] = base64.b64encode(png.read_bytes()).decode("ascii") + "\n"
-    print(f"{m.group(1)}: embedded image replaced by {png.name}")
-    done += 1
-if done:
-    tmp = path.with_suffix(".tmp")
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(nb, fh, indent=1, ensure_ascii=False)
-        fh.write("\n")
-    tmp.replace(path)
-print(f"{done} image(s) refreshed in {path.name}")
+ap = argparse.ArgumentParser()
+ap.add_argument("--dry-run", action="store_true")
+ap.add_argument("--yes", action="store_true")
+ap.add_argument("--skip-build", action="store_true")
+ap.add_argument("--seeds", type=int, default=100)
+ap.add_argument("--workers", type=int, default=4)
+ap.add_argument("--c6-max-minutes", type=float, default=35)
+args = ap.parse_args()
+DRY = args.dry_run
+STAMP = time.strftime("%Y%m%d_%H%M%S")
+LOG = ROOT / "logs" / f"rebuild_{STAMP}.log"
+PY = sys.executable
+T0 = time.time()
+
+RAW_FILES = {
+    "FlyWire edges (Zenodo, Buhmann)": RAW / "proofread_connections_783.feather",
+    "FlyWire annotations v3.2.0": RAW / "Supplemental_file1_neuron_annotations.tsv",
+    "FlyWire proofread ids": RAW / "proofread_root_ids_783.npy",
+    "FlyWire neuropil counts, pre (Zenodo 10676866)": RAW / "per_neuron_neuropil_count_pre_783.feather",
+    "FlyWire neuropil counts, post (Zenodo 10676866)": RAW / "per_neuron_neuropil_count_post_783.feather",
+    "male CNS syn-partners (6.8 GB)": RAW / "syn-partners-male-cns-v1.0-minconf-0.5.feather",
+}
+WEIGHTS = RAW / "connectome-weights-male-cns-v1.0-minconf-0.5.feather"       # optional cross-check
+
+
+def say(msg):
+    print(msg, flush=True)
+    if not DRY:
+        LOG.parent.mkdir(exist_ok=True)
+        with open(LOG, "a", encoding="utf-8") as fh:
+            fh.write(msg + "\n")
+
+
+def fail(step, msg):
+    say(f"\nSTOPPED at step '{step}': {msg}")
+    say(f"Log: {LOG}")
+    sys.exit(1)
+
+
+def run(step, cmd, env=None):
+    say(f"\n[{time.time() - T0:6.0f}s] {step}\n$ " + " ".join(str(c) for c in cmd))
+    if DRY:
+        return
+    e = dict(os.environ if env is None else env)
+    e["PYTHONIOENCODING"] = "utf-8"
+    with open(LOG, "a", encoding="utf-8") as fh:
+        p = subprocess.Popen([str(c) for c in cmd], cwd=ROOT, env=e, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                             text=True, encoding="utf-8", errors="replace", bufsize=1)
+        for line in p.stdout:
+            print(line, end="", flush=True)
+            fh.write(line)
+        rc = p.wait()
+    if rc:
+        fail(step, f"exit code {rc}")
+
+
+# ------------------------------------------------------------------ 0. preflight
+say("== 0. preflight")
+problems = []
+if sys.version_info < (3, 10):
+    problems.append(f"Python {sys.version.split()[0]} is too old (need 3.10 or newer)")
+for mod in ("pandas", "pyarrow", "matplotlib", "seaborn", "networkx", "nbformat", "nbclient", "pytest"):
+    try:
+        importlib.import_module(mod)
+    except ImportError:
+        problems.append(f"missing package '{mod}': python -m pip install -r requirements.txt")
+try:
+    importlib.import_module("igraph")
+except ImportError:
+    say("WARN: igraph is not installed; C6 will be much slower (about 8 times in my test) (python -m pip install python-igraph)")
+for rel in ("config.py", "eda_shared/eda_helpers.py", "src/build_cache.py", "notebooks/eda_C.ipynb", "tools/verify_outputs.py"):
+    if not (ROOT / rel).exists():
+        problems.append(f"missing {rel}")
+# the code must be the newest version (an old copy would reproduce the old mistakes)
+MARKERS = [("src/eda_c.py", "hue_order", "C2 colours (same colour per transmitter as in C1)"),
+           ("src/eda_c.py", "mb_type_mix", "the mushroom body type-mix check (Week 4)"),
+           ("src/fetch_malecns.py", "read_syn_partners", "male CNS brain part by synapse location (Week 4 correction 4)"),
+           ("src/eda_utils.py", "NT_COL", "nt_type_corrected in the analyses (Week 4 correction 1)"),
+           ("notebooks/eda_C.ipynb", "Threshold:", "figure captions that state the threshold"),
+           ("config.py", 'CONFIG_VERSION = "0.2.0"', "eda_shared v0.2.0 and its config.py (copy both unchanged)")]
+for rel, marker, why in MARKERS:
+    path = ROOT / rel
+    if path.exists() and marker not in path.read_text(encoding="utf-8", errors="ignore"):
+        problems.append(f"{rel} is an old version ({why}); unpack the newest project3_workstream_C.zip over it (not data, .env, eda_shared)")
+if not args.skip_build:
+    for label, path in RAW_FILES.items():
+        if not path.exists():
+            problems.append(f"missing raw file: {label}: {path}")
+    if not WEIGHTS.exists():
+        say("NOTE: connectome-weights is not in data/raw: the per-neuropil counts will not be cross-checked against it (optional)")
+    pkl = RAW / "neuprint_malecns_v1.0_traced.pkl"
+    if not pkl.exists() and not (ROOT / ".env").exists():
+        problems.append("no saved neuPrint answer and no .env with NEUPRINT_TOKEN")
+for p_ in problems:
+    say(f"PROBLEM: {p_}")
+if problems and not DRY:
+    fail("preflight", f"{len(problems)} problem(s) above")
+if not problems:
+    say("preflight ok")
+
+# ------------------------------------------------------------------ 1. backup and clean
+say("\n== 1. backup and clean")
+backup = ROOT.parent / f"project3_yedek_{STAMP}"
+to_clean = [ROOT / "figures", ROOT / "reports"] + ([] if args.skip_build else [ROOT / "data" / "cache"])
+say(f"old figures, reports and notebooks are copied to {backup}")
+say("then deleted: " + ", ".join(str(p.relative_to(ROOT)) for p in to_clean))
+if not DRY:
+    if not args.yes and input("Continue? (y/n) ").strip().lower() != "y":
+        sys.exit("cancelled")
+    backup.mkdir(parents=True, exist_ok=True)
+    for name in ("figures", "reports", "notebooks"):
+        if (ROOT / name).exists():
+            shutil.copytree(ROOT / name, backup / name)
+    for p_ in to_clean:
+        shutil.rmtree(p_, ignore_errors=True)
+    # Week 4: "keep the old figures, so the change is visible". The figures drawn before the corrections stay in the repository.
+    old = backup / "figures" / "eda_v0.1.1"
+    old = old if old.exists() else backup / "figures" / "eda"
+    if old.exists() and any(old.glob("*.png")):
+        shutil.copytree(old, ROOT / "figures" / "eda_v0.1.1")
+        say("kept the previous figures in figures/eda_v0.1.1")
+    # the lock-note files live in reports/ too: put them back, they are not regenerated by the notebooks (and may carry your edits)
+    (ROOT / "reports").mkdir(exist_ok=True)
+    for pat in ("lock_note_P3*.docx", "lock_numbers.*", "step0_C.md", "c5b_*.csv"):
+        for f in (backup / "reports").glob(pat):
+            shutil.copy2(f, ROOT / "reports" / f.name)
+            say(f"kept reports/{f.name}")
+
+# ------------------------------------------------------------------ 2. clean notebooks, tests
+run("2. tests (project and eda_shared)", [PY, "-m", "pytest", "tests", "eda_shared/tests", "-q"])
+
+# ------------------------------------------------------------------ 3. caches
+if not args.skip_build:
+    run("3a. FlyWire cache (corrections 1, 2, 3 and 6 by eda_shared v0.2.0)",
+        [PY, "-m", "src.build_cache", "--only", "fafb", "--force", "--fafb-edges", RAW_FILES["FlyWire edges (Zenodo, Buhmann)"],
+         "--fafb-annotations", RAW_FILES["FlyWire annotations v3.2.0"], "--fafb-proofread-ids", RAW_FILES["FlyWire proofread ids"],
+         "--fafb-count-pre", RAW_FILES["FlyWire neuropil counts, pre (Zenodo 10676866)"],
+         "--fafb-count-post", RAW_FILES["FlyWire neuropil counts, post (Zenodo 10676866)"]])
+    run("3b. male CNS cache (brain part by synapse location, corrections 1, 2, 4 and 6)",
+        [PY, "-m", "src.build_cache", "--only", "malecns", "--force", "--malecns-syn-partners", RAW_FILES["male CNS syn-partners (6.8 GB)"]]
+        + (["--malecns-weights", WEIGHTS] if WEIGHTS.exists() else []))
+
+run("3c. Step 0 on the corrected tables (reports/step0_C.md)", [PY, "tools/step0.py"])
+
+# ------------------------------------------------------------------ 4. notebooks
+env = dict(os.environ)
+env.pop("EDA_UNMAPPED_REGION", None)           # not needed any more: the two group rows cover the unspecified ROIs
+env.update({"EDA_N_SEEDS": str(args.seeds), "EDA_WORKERS": str(args.workers), "EDA_C6_MAX_MINUTES": str(args.c6_max_minutes)})
+run("4a. 00_integration (validators, assert_interchangeable, Step 0)", [PY, "tools/run_notebook.py", "notebooks/00_integration.ipynb"], env)
+run(f"4b. eda_C (C1-C6, {args.seeds} null graphs; the long step, about 25 minutes)", [PY, "tools/run_notebook.py", "notebooks/eda_C.ipynb"], env)
+
+# ------------------------------------------------------------------ 5. summary and verification
+run("5a. summary from the numbers (no number is typed by hand)", [PY, "tools/make_summary.py"])
+run("5b. verification (recomputes every number, tests colours, checks notebooks)", [PY, "tools/verify_outputs.py", "--expect-seeds", str(args.seeds)])
+
+say(f"\nDONE in {(time.time() - T0) / 60:.0f} minutes. Old outputs are in {backup}.")
+say("Now: (1) open the figures yourself, (2) rewrite the 'What surprised me' sentence in reports/eda_C.md in your own words,")
+say("(3) paste reports/eda_C_numbers.json to Claude so the talk and the guides get the new numbers, (4) zip and upload.")

@@ -1,6 +1,10 @@
 from pathlib import Path
 import pandas as pd
 
+# v0.2.0 (Week 4 Shared Data Corrections): new super_class levels, three new
+# neuron columns. Replace your config.py with this file, unchanged.
+CONFIG_VERSION = "0.2.0"
+
 # D6 sources
 FAFB_MATERIALIZATION   = 783
 FAFB_ANNOTATIONS_TAG   = "v3.2.0"
@@ -21,7 +25,10 @@ NT_VALUES      = ["acetylcholine", "glutamate", "gaba", "dopamine",
                   "serotonin", "octopamine", "histamine", "unknown"]
 SUPER_CLASS_VALUES = ["sensory", "ascending", "descending", "motor", "endocrine",
                       "visual_projection", "visual_centrifugal", "optic", "central",
-                      "unknown"]          # after EDA: add MaleCNS-only levels
+                      "sensory_ascending",               # FlyWire from v3.0.0; MaleCNS too
+                      "efferent", "vnc_intrinsic",       # MaleCNS only
+                      "unknown"]          # mapping: eda_shared.corrections.map_super_class
+NT_CORRECTION_SOURCES = ["known_nt", "kc_override", "predicted"]
 REGION_VALUES = None                     # after EDA: neuropils of both sources + "unknown"
 
 CAT = lambda values: pd.CategoricalDtype(values)
@@ -48,6 +55,10 @@ NEURON_SCHEMA = {
     "status":         ("string", True),
     "hemilineage":    ("string", True),
     "nt_known":       ("string", True),
+    # Week 4, built by eda_shared.corrections
+    "nt_type_corrected":    (CAT(NT_VALUES), False),             # use this one in analyses
+    "nt_correction_source": (CAT(NT_CORRECTION_SOURCES), False),
+    "super_class_source":   ("string", True),                    # raw source value
 }
 
 EDGE_SCHEMA = {
@@ -67,4 +78,3 @@ def cache_path(dataset, table, release, source, min_syn=None, conf=None):
     if conf is not None:
         name += f"_conf{conf}"
     return CACHE_DIR / f"{name}.parquet"
-
