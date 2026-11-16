@@ -1,7 +1,8 @@
 """Every number the Project 3 lock note cites, recomputed on the CORRECTED tables (Lock Note Assignment: "recompute the EDA
 numbers from the corrected tables"). No model is involved: only the structure and labels of the data.
 
-    python tools/lock_numbers.py            # writes reports/lock_numbers.json and reports/lock_numbers.md
+    python tools/lock_numbers.py                      # writes reports/lock_numbers.json and reports/lock_numbers.md (default: region rule; the lock note uses --selection union)
+    python tools/lock_numbers.py --selection union    # region rule OR a mushroom body cell type (after tools/mb_layers_check.py)
 
 Read-only on data/cache. The tie numbers also need data/raw (the FlyWire count files and the saved neuPrint answer); without them that
 block is skipped and the note says so.
@@ -22,6 +23,42 @@ import config  # noqa: E402
 from src import eda_c as C, eda_utils as U  # noqa: E402
 
 TAUS = (1, 3, 5, 10)
+SELECTION = "union"
+
+
+def select(n: pd.DataFrame, mode: str) -> set:
+    """The mushroom body subgraph: by region (shared rule), by cell type (week 2), or the union of both."""
+    r = C.subgraph_ids(n, "region")
+    if mode == "region":
+        return r
+    t = C.subgraph_ids(n, "cell_type")
+    return r | t if mode == "union" else t
+
+
+def design_block(n: pd.DataFrame, e: pd.DataFrame, ids: set) -> dict:
+    """What the training design needs from the graph: units, edges (the trainable recurrent weights), the width of a dense network with as
+    many weights, and the shortest paths from Kenyon cells to MBONs (the number of recurrent time steps)."""
+    from scipy.sparse import csr_matrix
+    from scipy.sparse.csgraph import dijkstra
+    order = sorted(ids)
+    pos = {i: k for k, i in enumerate(order)}
+    ct = n.set_index("neuron_id")["cell_type"].reindex(order)
+    kc = np.where(is_type(ct.reset_index(drop=True), "KC").to_numpy())[0]
+    mb = np.where(is_type(ct.reset_index(drop=True), "MBON").to_numpy())[0]
+    out = {}
+    for tau in TAUS:
+        s = C.sub_edges(e, ids, tau)
+        a = s["pre_id"].map(pos).to_numpy()
+        b = s["post_id"].map(pos).to_numpy()
+        g = csr_matrix((np.ones(len(s)), (a, b)), shape=(len(order), len(order)))
+        d = dijkstra(g, directed=True, unweighted=True, indices=kc, min_only=True) if len(kc) else np.array([])
+        dm = d[mb] if len(mb) else np.array([])
+        finite = dm[np.isfinite(dm)]
+        out[str(tau)] = {"units": len(order), "edges": int(len(s)), "dense_weights": len(order) ** 2, "matched_dense_width": int(round(len(s) ** 0.5)),
+                         "mbon_total": int(len(mb)), "mbon_reachable": int(len(finite)),
+                         "path_counts": {str(int(k)): int((finite == k).sum()) for k in sorted(set(finite))},
+                         "path_max": int(finite.max()) if len(finite) else None}
+    return out
 FAST = {"acetylcholine", "gaba", "glutamate"}
 MODULATORY = {"dopamine", "serotonin", "octopamine"}
 
@@ -56,7 +93,7 @@ def tau_block(n: pd.DataFrame, e: pd.DataFrame, ids: set) -> dict:
     return out
 
 
-def tie_block(name: str, n: pd.DataFrame) -> dict | None:
+def tie_block(name: str, n: pd.DataFrame, ids: set | None = None, ids_ct: set | None = None) -> dict | None:
     """Region ties among the neurons of the cache: how many, and how many would change the mushroom-body selection under another tie rule."""
     from eda_shared.corrections import fafb_neuropil_counts, malecns_neuropil_counts, neuropil_location
     from eda_shared.eda_helpers import MALECNS_NERVE_CORD, canonical_neuropil, load_neuropil_table
@@ -82,38 +119,53 @@ def tie_block(name: str, n: pd.DataFrame) -> dict | None:
     g = top.groupby("neuron_id")
     r = pd.DataFrame({"n_tied": g.size(), "first_is_mb": g["is_mb"].first(), "any_mb": g["is_mb"].any(), "all_mb": g["is_mb"].all()})
     tied = r["n_tied"] > 1
-    return {"neurons_with_a_tie": int(tied.sum()), "tied_and_selected_now": int((tied & r["first_is_mb"]).sum()),
-            "tied_selected_but_could_leave": int((tied & r["first_is_mb"] & ~r["all_mb"]).sum()),
-            "tied_not_selected_but_could_join": int((tied & ~r["first_is_mb"] & r["any_mb"]).sum()),
-            "selected_total": int(r["first_is_mb"].sum())}
+    if ids is None:                                     # region rule only (the first note)
+        sel = r["first_is_mb"]
+        only_region = sel
+    else:                                               # the selection of the lock note (union): a tie matters only where the region rule is what selects the unit
+        sel = pd.Series(r.index.isin(ids), index=r.index)
+        only_region = sel & ~pd.Series(r.index.isin(ids_ct or set()), index=r.index)
+    return {"neurons_with_a_tie": int(tied.sum()), "tied_and_selected_now": int((tied & sel).sum()),
+            "tied_selected_but_could_leave": int((tied & only_region & r["first_is_mb"] & ~r["all_mb"]).sum()),
+            "tied_not_selected_but_could_join": int((tied & ~sel & r["any_mb"]).sum()),
+            "selected_total": int(len(ids)) if ids is not None else int(r["first_is_mb"].sum())}
 
 
 def main() -> int:
+    global SELECTION
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--selection", choices=["region", "union", "cell_type"], default="union")
+    SELECTION = ap.parse_args().selection
     U._cache_dir()
-    out: dict = {"nt_col": U.NT_COL, "taus": list(TAUS)}
+    out: dict = {"nt_col": U.NT_COL, "taus": list(TAUS), "selection": SELECTION}
     data = {d: U.load(d) for d in C.DS}
     for d, (n, e) in data.items():
-        ids = C.subgraph_ids(n, "region")
+        ids = select(n, SELECTION)
         ids_ct = C.subgraph_ids(n, "cell_type")
+        ids_reg = C.subgraph_ids(n, "region")
         mb = n[n["neuron_id"].isin(ids)]
         nt = mb[U.NT_COL].astype(str)
-        res = {"mb_neurons": len(ids), "mb_neurons_cell_type_selection": len(ids_ct), "overlap_region_and_cell_type": len(ids & ids_ct),
+        res = {"mb_neurons": len(ids), "mb_neurons_region_rule": len(ids_reg), "kc_all": int(is_type(n["cell_type"], "KC").sum()), "mbon_all": int(is_type(n["cell_type"], "MBON").sum()),
+               "kc_in_region_rule": int(n.loc[n["neuron_id"].isin(ids_reg) & is_type(n["cell_type"], "KC"), "neuron_id"].size),
+               "mbon_in_region_rule": int(n.loc[n["neuron_id"].isin(ids_reg) & is_type(n["cell_type"], "MBON"), "neuron_id"].size), "mb_neurons_cell_type_selection": len(ids_ct), "overlap_region_and_cell_type": len(ids_reg & ids_ct),
                "mb_is_optic": int(mb["is_optic"].sum()), "mb_super_class": mb["super_class"].astype(str).value_counts().to_dict(),
                "nt_counts": nt.value_counts().to_dict(), "nt_shares": (nt.value_counts(normalize=True)).round(4).to_dict(),
                "source_counts": mb["nt_correction_source"].astype(str).value_counts().to_dict(),
                "unknown_label_share": float((nt == "unknown").mean()),
                "median_confidence_predicted": float(mb.loc[mb["nt_correction_source"].astype(str) == "predicted", "nt_confidence"].median()),
                "kc_neurons": int(is_type(mb["cell_type"], "KC").sum()), "mbon_neurons": int(is_type(mb["cell_type"], "MBON").sum()),
-               "tau": tau_block(n, e, ids)}
+               "tau": tau_block(n, e, ids), "design": design_block(n, e, ids)}
         # unit signs under the two glutamate rules (units, not edges)
         res["signs"] = {"rule1_glutamate_inhibitory": {"plus": int((nt == "acetylcholine").sum()), "minus": int(nt.isin(["gaba", "glutamate"]).sum()),
                                                        "free": int((~nt.isin(list(FAST))).sum())},
                         "rule2_glutamate_excitatory": {"plus": int(nt.isin(["acetylcholine", "glutamate"]).sum()), "minus": int((nt == "gaba").sum()),
                                                        "free": int((~nt.isin(list(FAST))).sum())}}
         res["type_mix"] = {"types": 0}
-        mix = C.mb_type_mix(n)
+        mix = C.mb_type_mix(n, selection=SELECTION)
         res["type_mix"] = {"types": int(len(mix)), "mixed_types": int((mix["top_share"] < 0.9).sum()), "neurons_in_mixed_types": int(mix.loc[mix["top_share"] < 0.9, "neurons"].sum())}
-        res["ties"] = tie_block(d, n)
+        res["ties"] = tie_block(d, n, ids, ids_ct)
+        res["glutamate_units_changing_sign"] = int((nt == "glutamate").sum())
         out[d] = res
     net = C.c4_net_index(*data["fafb"], tau=10)
     top12 = net.drop_duplicates("neuron_id")["neuropil"].value_counts().head(12).index
@@ -127,7 +179,7 @@ def main() -> int:
                             "edges_per_neuron": {t: {"fafb": f[t]["edges_per_neuron"], "malecns": m[t]["edges_per_neuron"]} for t in f}}
     target = f["5"]["edges_per_neuron"]
     # the male CNS threshold whose edges per neuron is closest to FlyWire's at tau = 5 (a density-matched check, found by scanning)
-    ids_m = C.subgraph_ids(data["malecns"][0], "region")
+    ids_m = select(data["malecns"][0], SELECTION)
     scan = {t: len(C.sub_edges(data["malecns"][1], ids_m, t)) / max(len(ids_m), 1) for t in range(1, 41)}
     out["cross_dataset"]["tau_malecns_matching_fafb_tau5_density"] = int(min(scan, key=lambda t: abs(scan[t] - target)))
     out["cross_dataset"]["fafb_edges_per_neuron_tau5"] = target
@@ -139,7 +191,7 @@ def main() -> int:
         lines += [f"## {U.LABEL[d]}: {r['mb_neurons']:,} mushroom body neurons (region); cell-type selection {r['mb_neurons_cell_type_selection']:,}; overlap {r['overlap_region_and_cell_type']:,}; is_optic True: {r['mb_is_optic']}",
                   f"- labels (nt_type_corrected): {r['nt_counts']}; source: {r['source_counts']}; unknown {r['unknown_label_share']:.1%}; KC {r['kc_neurons']}, MBON {r['mbon_neurons']}",
                   f"- signs, units: rule 1 {r['signs']['rule1_glutamate_inhibitory']}, rule 2 {r['signs']['rule2_glutamate_excitatory']}",
-                  f"- type mix: {r['type_mix']}; ties: {r['ties']}", "", "| tau | edges | per neuron | isolated | no input | no output | median in/out | fast-signed source | KC to MBON kept |", "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
+                  f"- glutamate units whose sign changes between the two rules: {r['glutamate_units_changing_sign']}", f"- type mix: {r['type_mix']}; ties: {r['ties']}", "", "| tau | edges | per neuron | isolated | no input | no output | median in/out | fast-signed source | KC to MBON kept |", "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
         for t, v in r["tau"].items():
             kk = "n/a" if v["kc_to_mbon_kept_vs_tau1"] is None else f"{v['kc_to_mbon_kept_vs_tau1']:.0%} ({v['kc_to_mbon_edges']:,})"
             fs = "n/a" if v["edges_from_fast_signed"] is None else f"{v['edges_from_fast_signed']:.0%}"

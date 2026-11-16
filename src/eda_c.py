@@ -513,11 +513,16 @@ def c2b_consensus(malecns_neurons: pd.DataFrame, consensus_path) -> pd.DataFrame
 
 
 # ----------------------------------------------------------------------------- Project 3 lock note: the mushroom-body types
-def mb_type_mix(neurons: pd.DataFrame, min_n: int = 5) -> pd.DataFrame:
+def mb_type_mix(neurons: pd.DataFrame, min_n: int = 5, selection: str = "union") -> pd.DataFrame:
     """Transmitter mix of every mushroom-body cell type, on nt_type_corrected (Week 4: 'check each type's mix before you assign
-    it a single value'). One row per cell type among the mushroom-body neurons (region MB_CA, MB_PED, MB_VL, MB_ML):
+    it a single value'). One row per cell type among the mushroom-body neurons of the chosen selection ("union" = region rule OR a
+    mushroom-body cell type, the selection of the lock note; "region" = region rule only, the earlier choice):
     neurons, the commonest transmitter and its share, how many transmitters appear, and the mix as text."""
-    mb = neurons[neurons["neuropil"].astype(str).isin(mb_neuropils()) & neurons["cell_type"].notna()].copy()
+    ids = subgraph_ids(neurons, "region")
+    if selection in ("union", "cell_type"):
+        ct = subgraph_ids(neurons, "cell_type")
+        ids = ids | ct if selection == "union" else ct
+    mb = neurons[neurons["neuron_id"].isin(ids) & neurons["cell_type"].notna()].copy()
     mb["nt"] = mb[U.NT_COL].astype(str)
     rows = []
     for t, g in mb.groupby("cell_type"):

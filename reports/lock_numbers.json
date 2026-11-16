@@ -6,258 +6,378 @@
   5,
   10
  ],
+ "selection": "union",
  "fafb": {
-  "mb_neurons": 5258,
+  "mb_neurons": 5670,
+  "mb_neurons_region_rule": 5258,
+  "kc_all": 5177,
+  "mbon_all": 96,
+  "kc_in_region_rule": 4926,
+  "mbon_in_region_rule": 22,
   "mb_neurons_cell_type_selection": 5612,
   "overlap_region_and_cell_type": 5200,
   "mb_is_optic": 0,
   "mb_super_class": {
-   "central": 5250,
+   "central": 5662,
    "visual_projection": 7,
    "endocrine": 1
   },
   "nt_counts": {
-   "acetylcholine": 4980,
-   "dopamine": 246,
-   "glutamate": 16,
-   "gaba": 14,
+   "acetylcholine": 5273,
+   "dopamine": 333,
+   "glutamate": 33,
+   "gaba": 29,
    "unknown": 1,
    "octopamine": 1
   },
   "nt_shares": {
-   "acetylcholine": 0.9471,
-   "dopamine": 0.0468,
-   "glutamate": 0.003,
-   "gaba": 0.0027,
+   "acetylcholine": 0.93,
+   "dopamine": 0.0587,
+   "glutamate": 0.0058,
+   "gaba": 0.0051,
    "unknown": 0.0002,
    "octopamine": 0.0002
   },
   "source_counts": {
-   "known_nt": 5228,
-   "predicted": 30
+   "known_nt": 5611,
+   "predicted": 59
   },
-  "unknown_label_share": 0.0001901863826550019,
-  "median_confidence_predicted": 0.8218204379081726,
-  "kc_neurons": 4926,
-  "mbon_neurons": 22,
+  "unknown_label_share": 0.0001763668430335097,
+  "median_confidence_predicted": 0.8053582906723022,
+  "kc_neurons": 5177,
+  "mbon_neurons": 96,
   "tau": {
    "1": {
-    "neurons": 5258,
-    "edges": 448478,
-    "edges_per_neuron": 85.29440852034995,
-    "density": 0.016224920776174614,
-    "isolated": 4,
-    "no_input": 7,
-    "no_output": 5,
-    "median_in": 69.0,
-    "median_out": 77.0,
-    "edges_from_fast_signed": 0.9022426964087424,
-    "edges_from_modulatory": 0.09775730359125755,
+    "neurons": 5670,
+    "edges": 536343,
+    "edges_per_neuron": 94.59312169312169,
+    "density": 0.016686033108682607,
+    "isolated": 2,
+    "no_input": 4,
+    "no_output": 3,
+    "median_in": 73.0,
+    "median_out": 88.0,
+    "edges_from_fast_signed": 0.8950839295003384,
+    "edges_from_modulatory": 0.1049160704996616,
     "edges_from_unknown": 0.0,
-    "kc_to_mbon_edges": 25958,
+    "kc_to_mbon_edges": 62261,
     "kc_to_mbon_kept_vs_tau1": 1.0,
     "median_syn_per_edge": 1.0,
-    "synapses": 1047852
+    "synapses": 1273203
    },
    "3": {
-    "neurons": 5258,
-    "edges": 70427,
-    "edges_per_neuron": 13.394256371243818,
-    "density": 0.0025478897415339204,
+    "neurons": 5670,
+    "edges": 91421,
+    "edges_per_neuron": 16.12363315696649,
+    "density": 0.00284417589644849,
     "isolated": 17,
-    "no_input": 31,
-    "no_output": 39,
+    "no_input": 29,
+    "no_output": 35,
     "median_in": 5.0,
-    "median_out": 10.0,
-    "edges_from_fast_signed": 0.9375949564797592,
-    "edges_from_modulatory": 0.062405043520240816,
+    "median_out": 13.0,
+    "edges_from_fast_signed": 0.9391387099244156,
+    "edges_from_modulatory": 0.060861290075584384,
     "edges_from_unknown": 0.0,
-    "kc_to_mbon_edges": 19978,
-    "kc_to_mbon_kept_vs_tau1": 0.7696278603898605,
+    "kc_to_mbon_edges": 35943,
+    "kc_to_mbon_kept_vs_tau1": 0.5772955782913862,
     "median_syn_per_edge": 5.0,
-    "synapses": 601973
+    "synapses": 746253
    },
    "5": {
-    "neurons": 5258,
-    "edges": 36570,
-    "edges_per_neuron": 6.955116013693419,
-    "density": 0.0013230199759736389,
-    "isolated": 55,
-    "no_input": 114,
-    "no_output": 85,
+    "neurons": 5670,
+    "edges": 47329,
+    "edges_per_neuron": 8.34726631393298,
+    "density": 0.0014724406974656872,
+    "isolated": 45,
+    "no_input": 124,
+    "no_output": 68,
     "median_in": 2.0,
-    "median_out": 5.0,
-    "edges_from_fast_signed": 0.9701941482089144,
-    "edges_from_modulatory": 0.02980585179108559,
+    "median_out": 6.0,
+    "edges_from_fast_signed": 0.9636797735003909,
+    "edges_from_modulatory": 0.03632022649960912,
     "edges_from_unknown": 0.0,
-    "kc_to_mbon_edges": 13210,
-    "kc_to_mbon_kept_vs_tau1": 0.5088989906772479,
-    "median_syn_per_edge": 10.0,
-    "synapses": 489574
+    "kc_to_mbon_edges": 21438,
+    "kc_to_mbon_kept_vs_tau1": 0.34432469764378987,
+    "median_syn_per_edge": 9.0,
+    "synapses": 599385
    },
    "10": {
-    "neurons": 5258,
-    "edges": 18653,
-    "edges_per_neuron": 3.5475465956637504,
-    "density": 0.0006748233965500762,
-    "isolated": 145,
-    "no_input": 353,
-    "no_output": 165,
+    "neurons": 5670,
+    "edges": 21961,
+    "edges_per_neuron": 3.8731922398589065,
+    "density": 0.0006832231857221568,
+    "isolated": 151,
+    "no_input": 454,
+    "no_output": 190,
     "median_in": 1.0,
-    "median_out": 2.0,
-    "edges_from_fast_signed": 0.9861148340749477,
-    "edges_from_modulatory": 0.01388516592505227,
+    "median_out": 3.0,
+    "edges_from_fast_signed": 0.9745913209780975,
+    "edges_from_modulatory": 0.025408679021902462,
     "edges_from_unknown": 0.0,
-    "kc_to_mbon_edges": 2696,
-    "kc_to_mbon_kept_vs_tau1": 0.10386008167039062,
-    "median_syn_per_edge": 18.0,
-    "synapses": 375181
+    "kc_to_mbon_edges": 4593,
+    "kc_to_mbon_kept_vs_tau1": 0.07377009685035577,
+    "median_syn_per_edge": 17.0,
+    "synapses": 436873
+   }
+  },
+  "design": {
+   "1": {
+    "units": 5670,
+    "edges": 536343,
+    "dense_weights": 32148900,
+    "matched_dense_width": 732,
+    "mbon_total": 96,
+    "mbon_reachable": 96,
+    "path_counts": {
+     "1": 96
+    },
+    "path_max": 1
+   },
+   "3": {
+    "units": 5670,
+    "edges": 91421,
+    "dense_weights": 32148900,
+    "matched_dense_width": 302,
+    "mbon_total": 96,
+    "mbon_reachable": 96,
+    "path_counts": {
+     "1": 93,
+     "2": 3
+    },
+    "path_max": 2
+   },
+   "5": {
+    "units": 5670,
+    "edges": 47329,
+    "dense_weights": 32148900,
+    "matched_dense_width": 218,
+    "mbon_total": 96,
+    "mbon_reachable": 96,
+    "path_counts": {
+     "1": 77,
+     "2": 19
+    },
+    "path_max": 2
+   },
+   "10": {
+    "units": 5670,
+    "edges": 21961,
+    "dense_weights": 32148900,
+    "matched_dense_width": 148,
+    "mbon_total": 96,
+    "mbon_reachable": 91,
+    "path_counts": {
+     "1": 57,
+     "2": 34
+    },
+    "path_max": 2
    }
   },
   "signs": {
    "rule1_glutamate_inhibitory": {
-    "plus": 4980,
-    "minus": 30,
-    "free": 248
+    "plus": 5273,
+    "minus": 62,
+    "free": 335
    },
    "rule2_glutamate_excitatory": {
-    "plus": 4996,
-    "minus": 14,
-    "free": 248
+    "plus": 5306,
+    "minus": 29,
+    "free": 335
    }
   },
   "type_mix": {
-   "types": 22,
+   "types": 25,
    "mixed_types": 0,
    "neurons_in_mixed_types": 0
   },
   "ties": {
    "neurons_with_a_tie": 232,
-   "tied_and_selected_now": 35,
-   "tied_selected_but_could_leave": 2,
-   "tied_not_selected_but_could_join": 5,
-   "selected_total": 5258
-  }
+   "tied_and_selected_now": 41,
+   "tied_selected_but_could_leave": 0,
+   "tied_not_selected_but_could_join": 0,
+   "selected_total": 5670
+  },
+  "glutamate_units_changing_sign": 33
  },
  "malecns": {
-  "mb_neurons": 4435,
+  "mb_neurons": 4515,
+  "mb_neurons_region_rule": 4435,
+  "kc_all": 4064,
+  "mbon_all": 97,
+  "kc_in_region_rule": 4064,
+  "mbon_in_region_rule": 31,
   "mb_neurons_cell_type_selection": 4510,
   "overlap_region_and_cell_type": 4430,
   "mb_is_optic": 0,
   "mb_super_class": {
-   "central": 4434,
+   "central": 4514,
    "unknown": 1
   },
   "nt_counts": {
-   "acetylcholine": 4080,
-   "dopamine": 323,
-   "gaba": 14,
-   "glutamate": 9,
-   "unknown": 9
+   "acetylcholine": 4115,
+   "dopamine": 332,
+   "gaba": 29,
+   "glutamate": 25,
+   "unknown": 12,
+   "serotonin": 2
   },
   "nt_shares": {
-   "acetylcholine": 0.92,
-   "dopamine": 0.0728,
-   "gaba": 0.0032,
-   "glutamate": 0.002,
-   "unknown": 0.002
+   "acetylcholine": 0.9114,
+   "dopamine": 0.0735,
+   "gaba": 0.0064,
+   "glutamate": 0.0055,
+   "unknown": 0.0027,
+   "serotonin": 0.0004
   },
   "source_counts": {
    "kc_override": 4064,
-   "predicted": 371
+   "predicted": 451
   },
-  "unknown_label_share": 0.002029312288613303,
-  "median_confidence_predicted": 0.9004021286964417,
+  "unknown_label_share": 0.0026578073089701,
+  "median_confidence_predicted": 0.9001525640487671,
   "kc_neurons": 4064,
-  "mbon_neurons": 31,
+  "mbon_neurons": 97,
   "tau": {
    "1": {
-    "neurons": 4435,
-    "edges": 981780,
-    "edges_per_neuron": 221.37091319052988,
-    "density": 0.04992578105334458,
+    "neurons": 4515,
+    "edges": 1027369,
+    "edges_per_neuron": 227.54573643410853,
+    "density": 0.05040889154499524,
     "isolated": 0,
     "no_input": 0,
     "no_output": 0,
-    "median_in": 184.0,
-    "median_out": 193.0,
-    "edges_from_fast_signed": 0.856639980443684,
-    "edges_from_modulatory": 0.14143901892481003,
-    "edges_from_unknown": 0.0019210006315060401,
-    "kc_to_mbon_edges": 26557,
+    "median_in": 185.0,
+    "median_out": 201.0,
+    "edges_from_fast_signed": 0.8587907558043897,
+    "edges_from_modulatory": 0.1390191839543533,
+    "edges_from_unknown": 0.0021900602412570362,
+    "kc_to_mbon_edges": 61210,
     "kc_to_mbon_kept_vs_tau1": 1.0,
     "median_syn_per_edge": 1.0,
-    "synapses": 2579812
+    "synapses": 2825681
    },
    "3": {
-    "neurons": 4435,
-    "edges": 216207,
-    "edges_per_neuron": 48.75016910935739,
-    "density": 0.010994625419340863,
+    "neurons": 4515,
+    "edges": 241340,
+    "edges_per_neuron": 53.452934662236984,
+    "density": 0.011841589424509745,
     "isolated": 0,
     "no_input": 1,
     "no_output": 1,
     "median_in": 35.0,
-    "median_out": 41.0,
-    "edges_from_fast_signed": 0.8678534922551073,
-    "edges_from_modulatory": 0.1297552808188449,
-    "edges_from_unknown": 0.0023912269260477226,
-    "kc_to_mbon_edges": 22090,
-    "kc_to_mbon_kept_vs_tau1": 0.8317957600632602,
+    "median_out": 46.0,
+    "edges_from_fast_signed": 0.8764357338195078,
+    "edges_from_modulatory": 0.12120245297091241,
+    "edges_from_unknown": 0.002361813209579846,
+    "kc_to_mbon_edges": 44042,
+    "kc_to_mbon_kept_vs_tau1": 0.7195229537657245,
     "median_syn_per_edge": 4.0,
-    "synapses": 1609458
+    "synapses": 1827803
    },
    "5": {
-    "neurons": 4435,
-    "edges": 87431,
-    "edges_per_neuron": 19.713866967305524,
-    "density": 0.004446068328215048,
-    "isolated": 6,
-    "no_input": 14,
-    "no_output": 18,
+    "neurons": 4515,
+    "edges": 103580,
+    "edges_per_neuron": 22.941306755260243,
+    "density": 0.0050822567025388225,
+    "isolated": 1,
+    "no_input": 11,
+    "no_output": 6,
     "median_in": 9.0,
-    "median_out": 15.0,
-    "edges_from_fast_signed": 0.8753073852523704,
-    "edges_from_modulatory": 0.12270247395088699,
-    "edges_from_unknown": 0.0019901407967425743,
-    "kc_to_mbon_edges": 19194,
-    "kc_to_mbon_kept_vs_tau1": 0.7227472982641111,
+    "median_out": 18.0,
+    "edges_from_fast_signed": 0.8869955589882217,
+    "edges_from_modulatory": 0.11099633133809615,
+    "edges_from_unknown": 0.002008109673682178,
+    "kc_to_mbon_edges": 33496,
+    "kc_to_mbon_kept_vs_tau1": 0.5472308446332299,
     "median_syn_per_edge": 7.0,
-    "synapses": 1180668
+    "synapses": 1368112
    },
    "10": {
-    "neurons": 4435,
-    "edges": 30314,
-    "edges_per_neuron": 6.835174746335964,
-    "density": 0.0015415369297104113,
-    "isolated": 48,
-    "no_input": 167,
-    "no_output": 73,
+    "neurons": 4515,
+    "edges": 36138,
+    "edges_per_neuron": 8.003986710963455,
+    "density": 0.0017731472554194628,
+    "isolated": 12,
+    "no_input": 151,
+    "no_output": 21,
     "median_in": 2.0,
-    "median_out": 6.0,
-    "edges_from_fast_signed": 0.9078643531041762,
-    "edges_from_modulatory": 0.09048624397967936,
-    "edges_from_unknown": 0.0016494029161443558,
-    "kc_to_mbon_edges": 11974,
-    "kc_to_mbon_kept_vs_tau1": 0.4508792408781112,
-    "median_syn_per_edge": 19.0,
-    "synapses": 826667
+    "median_out": 7.0,
+    "edges_from_fast_signed": 0.9084620067518955,
+    "edges_from_modulatory": 0.08968398915269246,
+    "edges_from_unknown": 0.0018540040954120316,
+    "kc_to_mbon_edges": 16779,
+    "kc_to_mbon_kept_vs_tau1": 0.2741218755105375,
+    "median_syn_per_edge": 18.0,
+    "synapses": 946839
+   }
+  },
+  "design": {
+   "1": {
+    "units": 4515,
+    "edges": 1027369,
+    "dense_weights": 20385225,
+    "matched_dense_width": 1014,
+    "mbon_total": 97,
+    "mbon_reachable": 97,
+    "path_counts": {
+     "1": 97
+    },
+    "path_max": 1
+   },
+   "3": {
+    "units": 4515,
+    "edges": 241340,
+    "dense_weights": 20385225,
+    "matched_dense_width": 491,
+    "mbon_total": 97,
+    "mbon_reachable": 97,
+    "path_counts": {
+     "1": 96,
+     "2": 1
+    },
+    "path_max": 2
+   },
+   "5": {
+    "units": 4515,
+    "edges": 103580,
+    "dense_weights": 20385225,
+    "matched_dense_width": 322,
+    "mbon_total": 97,
+    "mbon_reachable": 97,
+    "path_counts": {
+     "1": 91,
+     "2": 6
+    },
+    "path_max": 2
+   },
+   "10": {
+    "units": 4515,
+    "edges": 36138,
+    "dense_weights": 20385225,
+    "matched_dense_width": 190,
+    "mbon_total": 97,
+    "mbon_reachable": 94,
+    "path_counts": {
+     "1": 74,
+     "2": 20
+    },
+    "path_max": 2
    }
   },
   "signs": {
    "rule1_glutamate_inhibitory": {
-    "plus": 4080,
-    "minus": 23,
-    "free": 332
+    "plus": 4115,
+    "minus": 54,
+    "free": 346
    },
    "rule2_glutamate_excitatory": {
-    "plus": 4089,
-    "minus": 14,
-    "free": 332
+    "plus": 4140,
+    "minus": 29,
+    "free": 346
    }
   },
   "type_mix": {
-   "types": 24,
+   "types": 25,
    "mixed_types": 1,
    "neurons_in_mixed_types": 12
   },
@@ -266,8 +386,9 @@
    "tied_and_selected_now": 4,
    "tied_selected_but_could_leave": 0,
    "tied_not_selected_but_could_join": 0,
-   "selected_total": 4435
-  }
+   "selected_total": 4515
+  },
+  "glutamate_units_changing_sign": 25
  },
  "c4_corrected": {
   "neuropils": 12,
@@ -291,23 +412,23 @@
   },
   "edges_per_neuron": {
    "1": {
-    "fafb": 85.29440852034995,
-    "malecns": 221.37091319052988
+    "fafb": 94.59312169312169,
+    "malecns": 227.54573643410853
    },
    "3": {
-    "fafb": 13.394256371243818,
-    "malecns": 48.75016910935739
+    "fafb": 16.12363315696649,
+    "malecns": 53.452934662236984
    },
    "5": {
-    "fafb": 6.955116013693419,
-    "malecns": 19.713866967305524
+    "fafb": 8.34726631393298,
+    "malecns": 22.941306755260243
    },
    "10": {
-    "fafb": 3.5475465956637504,
-    "malecns": 6.835174746335964
+    "fafb": 3.8731922398589065,
+    "malecns": 8.003986710963455
    }
   },
   "tau_malecns_matching_fafb_tau5_density": 10,
-  "fafb_edges_per_neuron_tau5": 6.955116013693419
+  "fafb_edges_per_neuron_tau5": 8.34726631393298
  }
 }
