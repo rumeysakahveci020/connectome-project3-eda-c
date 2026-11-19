@@ -1,0 +1,5 @@
+dataset,condition,nominal_params,mask_weights,effective_nonzero,units
+fafb,dense_params,47839.0,47524.0,47524.0,218.0
+fafb,masked_sign,31646347.0,47329.0,38855.0,5625.0
+malecns,dense_params,104104.0,103684.0,103684.0,322.0
+malecns,masked_sign,20380808.0,103580.0,92015.0,4514.0

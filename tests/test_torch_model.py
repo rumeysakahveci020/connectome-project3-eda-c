@@ -103,7 +103,7 @@ def test_torch_training_learns_an_easy_task_and_records_violations_and_ablation(
     post = np.tile(np.arange(n_kc, n_kc + n_out), n_kc).astype(np.int32)
     g = Graph(n_kc + n_out, pre, post, np.arange(n_kc, dtype=np.int32), np.arange(n_kc, n_kc + n_out, dtype=np.int32), np.ones(n_kc + n_out, dtype=np.int8), "true_mask")
     task = make_task(0, 6, 30)
-    res = train_torch(TorchMaskedRNN(g, 1, 0, True), task, lr=3e-3, seed=0, max_epochs=60, patience=60, readout=g.mbon)
+    res = train_torch(TorchMaskedRNN(g, 2, 0, True), task, lr=3e-3, seed=0, max_epochs=60, patience=60, readout=g.mbon)
     assert res["train_acc"] > 0.9 and res["test_acc"] > 0.8
     assert len(res["violation_per_epoch"]) == res["epochs_run"] and 0.0 <= res["violation_mean"] <= 1.0
     assert set(res["ablation_test_acc"]) == {"0.0", "0.1", "0.2", "0.3", "0.5"} and abs(res["ablation_test_acc"]["0.0"] - res["test_acc"]) < 1e-9
