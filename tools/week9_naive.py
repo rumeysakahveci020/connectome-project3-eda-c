@@ -5,7 +5,7 @@
     python tools/week9_naive.py --approved                              # all seeds, the P x n grid, both datasets (long; resumable)
     python tools/week9_naive.py --datasets fafb --P 40 --n 10 --seeds 3 --approved      # a small slice
 
-Conditions: masked_sign (the true mask with the sign constraint), dense_params (H = round(sqrt(E)) units, as many weights as the mask has edges),
+Conditions: masked_sign (the true mask with the sign constraint), masked_free (the same true mask, NO sign constraint: separates the sign effect from the structure effect), dense_params (H = round(sqrt(E)) units, as many weights as the mask has edges),
 dense_units (the same N units, N*N weights; heavy, run it on a few cells). The script appends one JSON line per run to results/week9/runs.jsonl and skips
 runs already there (--resume is the default). Do not run it on the real tables before the milestone prerequisites hold: --approved is required.
 """
@@ -28,7 +28,8 @@ from src.model.graphs import build_units, make_condition, time_steps  # noqa: E4
 from src.model.task import GRID_N, GRID_P, make_task  # noqa: E402
 
 LR_GRID = (1e-4, 3e-4, 1e-3, 3e-3, 1e-2)
-CONDITIONS = {"masked_sign": ("true_mask", True, "sparse"), "dense_params": ("dense", False, "sparse"), "dense_units": ("dense_units", False, "dense")}
+CONDITIONS = {"masked_sign": ("true_mask", True, "sparse"), "dense_params": ("dense", False, "sparse"), "dense_units": ("dense_units", False, "dense"),
+              "masked_free": ("true_mask", False, "sparse")}
 TUNE_CELL = (40, 10)
 
 

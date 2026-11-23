@@ -2,5 +2,7 @@
  "fafb/masked_sign": 0.01,
  "fafb/dense_params": 0.003,
  "malecns/masked_sign": 0.01,
- "malecns/dense_params": 0.003
+ "malecns/dense_params": 0.003,
+ "fafb/masked_free": 0.01,
+ "malecns/masked_free": 0.01
 }
